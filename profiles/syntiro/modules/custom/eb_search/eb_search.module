@@ -1,0 +1,1589 @@
+<?php
+
+/**
+ * Implements hook_init().
+ */
+function eb_search_init() {
+  // Check Apachesolr Autocomplete Module Enable
+  if (module_exists('apachesolr_autocomplete')) {
+    drupal_add_css( drupal_get_path('module', 'apachesolr_autocomplete') . '/apachesolr_autocomplete.css');
+    // If using custom JS widget, include files and settings.
+    if (apachesolr_autocomplete_variable_get_widget() == 'custom') {
+      // Add custom autocomplete files
+      drupal_add_js(drupal_get_path('module', 'apachesolr_autocomplete') .'/apachesolr_autocomplete.js');
+      drupal_add_js(drupal_get_path('module', 'apachesolr_autocomplete') .'/jquery-autocomplete/jquery.autocomplete.js');
+      drupal_add_css(drupal_get_path('module', 'apachesolr_autocomplete') .'/jquery-autocomplete/jquery.autocomplete.css');
+      // Specify path to autocomplete handler.
+      drupal_add_js(array('eb_search_autocomplete' => array('path' => url('apachesolr_autocomplete'))), 'setting');
+    }
+  }
+}
+/**
+ * Implements hook_menu().
+ */
+function eb_search_menu() {
+  $items = array();
+  $items['ebsearch/results'] = array(
+    'title' => t('Search Results'),
+    'page callback' => 'eb_search_results',
+    'access arguments' => array('access search'),
+    'type' => MENU_CALLBACK,
+    'file' => 'eb_search.inc',
+    'file path' => drupal_get_path('module', 'eb_search'). '/includes',
+  );
+  $items['mysearch/results'] = array(
+    'page callback' => 'mysearch_results',
+    'access arguments' => array('access search'),
+    'type' => MENU_CALLBACK,
+    'file' => 'eb_search.inc',
+    'file path' => drupal_get_path('module', 'eb_search'). '/includes',
+  );
+  $items['google_xmlresults'] = array(
+    'title' => t('My form1'),
+    'page callback' => 'google_xmlresults',
+    'access arguments' => array('access search'),
+    'description' => t('My form1'),
+    'type' => MENU_CALLBACK,
+    'file' => 'eb_search_google_xml.inc',
+    'file path' => drupal_get_path('module', 'eb_search'). '/includes',
+  );
+  $items['admin/settings/apachesolr/edubridge-setting'] = array(
+    'title' => t('Edubridge Settings'),
+    'page callback'      => 'drupal_get_form',
+    'page arguments'     => array('apachesolr_edubridge_settings_form'),
+    'access callback'    => 'user_access',
+    'access arguments'   => array('administer search'),
+    'weight' => -5,
+    'type' => MENU_LOCAL_TASK,
+    'file' => 'eb_search_solr_admin.inc',
+    'file path' => drupal_get_path('module', 'eb_search'). '/includes',
+  );
+  $items['popupsearch/%'] = array(
+    'page callback' => 'username_search_results',
+    'access arguments' => array('access search'),
+    'type' => MENU_CALLBACK,
+    'file' => 'eb_search.inc',
+    'file path' => drupal_get_path('module', 'eb_search'). '/includes',
+  );
+  $items['weight_age/%node'] = array(
+    'page callback' => 'weight_age',
+    'page arguments' => array(1),
+    'access arguments' => array('create assignment'),
+    'type' => MENU_CALLBACK,
+    'file' => 'eb_search.inc',
+    'file path' => drupal_get_path('module', 'eb_search'). '/includes',
+  );
+  return $items;
+}
+
+/**
+ * Implements hook_perm().
+ *
+ */
+function eb_search_perm() {
+  return array('access search', 'view activity meter');
+}
+
+/**
+ * Implements hook_theme().
+ */
+function eb_search_theme() {
+  return array(
+    'google_xmlresults' => array(
+      'template' => 'templates/google_xmlresults',
+      'arguments' => array('results' => NULL),
+    ),
+    'custom_search' => array(
+      'template' => 'templates/custom-search',
+      'arguments' => array('results' => NULL),
+    ),
+    'mysearch_results' => array(
+      'template' => 'templates/mysearch-results',
+      'arguments' => array('results' => NULL),
+    ),
+    'mysearch_search_result' => array(
+      'arguments' => array('result' => NULL, 'type' => NULL),
+      'template' => 'templates/mysearch-search-result',
+    ),
+    'mysearch_search_results' => array(
+      'arguments' => array('results' => NULL, 'type' => NULL),
+      'template' => 'templates/mysearch-search-results',
+    ),
+    'ebsearch_result' => array(
+      'arguments' => array('result' => NULL, 'type' => NULL),
+      'template' => 'templates/ebsearch-result',
+    ),
+    'ebsearch_results' => array(
+      'arguments' => array('results' => NULL, 'type' => NULL, 'response' => NULL),
+      'template' => 'templates/ebsearch-results',
+    ),
+    'filterbyauthorasset' => array(
+      'arguments' => array('results' => NULL, 'type' => NULL),
+      'template' => 'templates/filterbyauthorasset',
+    ),
+    'facet_list' => array(
+      'arguments' => array('facets' => NULL),
+    ),
+    'similar_block_title' => array(
+      'arguments' => array('block_title' => NULL, 'block_content' => NULL),
+    ),// Username search result theme registration
+    'username_search_results' => array(
+      'arguments' => array('results' => NULL, 'type' => NULL),
+      'template' => 'templates/username-search-results',
+    ),// Username search result for each user
+    'username_search_result' => array(
+      'arguments' => array('results' => NULL, 'type' => NULL),
+      'template' => 'templates/username-search-result',
+    ),
+  );
+}
+
+/**
+ * Implementation of hook_block().
+ * @param $op
+ * @param $delta
+ * @return block data
+ */
+function eb_search_block($op = 'list', $delta = 0) {
+  module_load_include('inc', 'eb_search', 'includes/eb_search');
+  if ($op == 'list') {
+    //$blocks[0]['info'] = t('Custom Search for Home and Search page');
+    $blocks[1]['info'] = t('Custom Search for Header');
+    //$blocks[2]['info'] = t('Custom Search for Basket');
+    $blocks[3]['info'] = t('Similar Assets');
+    $blocks[4]['info'] = t('External Results');
+    $blocks[5]['info'] = t('Filter Results');
+    return $blocks;
+  }
+  if ($op == 'view') {
+    switch ($delta) {
+      // Custom Search for Header
+      case 1:
+        // view activity meter permission is for student login home page
+        if (user_access('access search')) {
+          $block['content'] = drupal_get_form('getSolrSearchform');
+        }
+        break;
+      // Similar Asset
+      case 3:
+        if (user_access('access search')) {
+          $node = function_exists("custom_node_load") ? custom_node_load() : NULL;
+           if (($node->type == 'asset' ||  $node->type == 'bead' || $node->type == 'quiz') && is_null(arg(2)) &&  arg(0) != 'review_listing' && arg(0) != 'recommend') {
+            // Get Paritcular node taxonomy tag
+            if ($node->taxonomy) {
+              foreach($node->taxonomy as $key => $value) {
+                if ($value->vid == TAGS) {
+                  $tax_tag[] = $value->name;
+                }
+              }
+              if ($tax_tag) {
+                $search_value = implode(', ', $tax_tag);
+              }
+            }
+            // if search keyword exists then only solr search functionality will work
+            if ($search_value && function_exists("similar_assets")) {
+              $sim_asset = similar_assets($search_value, 1);
+              if ($sim_asset) {
+                $block['content'] =  theme('similar_block_title', $search_value, $sim_asset);
+              }
+            }
+          }
+        }
+      break;
+      // Custom Search for CEON Header
+      case 4:
+        // view activity meter permission is for student login home page
+        if (user_access('access search') && arg(0) == 'ebsearch') {
+          $block['content'] = google_federated();
+        }
+      break;
+      case 5:
+        // to view right side filter block in search result page
+        if (user_access('access search') && arg(0) == 'ebsearch') {
+          $block['content'] = filter_search_results();
+        }
+      break;
+    }
+    return $block;
+  }
+}
+
+/**
+ * Update index field for search progress
+ *
+ * This hook is invoked from apachesolr_update_index(). The indexing as specified in configuration
+ * will be done in the apapche solr index. This will be followed by specific additional fields that
+ * need to be indexed defined in eb_search_apachesolr_update_index
+ *
+ * @see _calc_score().
+ * @see beads_stringable_link() is in eb_others_common.inc
+ */
+function eb_search_apachesolr_update_index(&$doc, $node) {
+  // The score value will from the Content Bias Setting
+  if ($node->type == 'asset' || $node->type == 'bead' || $node->type == 'quiz') {
+    // Calculate score
+    $value = _calc_score($node);
+    $doc->ps_score_content = ( $value > 0 ) ? $value : 0;
+    if ($node->type == 'bead') {
+      $doc->tm_beadseqno = $node->field_bead_seq_no[0]['value'];
+      $doc->tm_source_id = $node->field_source_id[0]['value'];
+      if (function_exists("beads_stringable_link") && $node->field_source_id[0]['value']) {
+        $doc->ss_beads_stringable_link = beads_stringable_link($node->nid, $node->field_bead_seq_no[0]['value'], $node->field_source_id[0]['value']);
+      }
+    }
+    elseif ($node->type == 'asset') {
+      $content_field = function_exists("content_fields") ? content_fields('field_type') : NULL;
+      $allowed_values = function_exists("content_allowed_values") ? content_allowed_values($content_field) : NULL;
+      foreach ($allowed_values as $key => $value) {
+        if ($node->field_type[0]['value'] == $key) {
+            $doc->tm_type =  $value;
+          break;
+        }
+      }
+      $content_field = function_exists("content_fields") ? content_fields('field_creative_commons_options') : NULL;
+      $allowed_values = function_exists("content_allowed_values") ? content_allowed_values($content_field) : NULL;
+      foreach ($allowed_values as $key => $value) {
+        if ($node->field_creative_commons_options[0]['value'] == $key) {
+            $doc->tm_creative_common =  $value;
+          break;
+        }
+      }
+      if (module_exists("eb_hierarchical_select_ext")) {
+        //$mlr_standard = get_hs_list($node->nid, TRUE, ' ');
+        $mlr_standard = get_hs_list($node->nid, TRUE);
+        if (count($mlr_standard) > 0)  {
+          foreach($mlr_standard as $key => $value) {
+            $doc->setMultiValue('tm_mlrstandard', $value);
+          }
+          //Social Studies-History-Connections
+        }
+      }
+      
+    }
+    $doc->format = $node->field_format[0]['value'];
+    $doc->tm_source = trim($node->field_source[0]['value']);
+    $taxonomy_name = end($node->taxonomy);
+    $doc->ss_taxonomy_name = $taxonomy_name->name;
+  }
+  elseif ($node->type == 'profile') {
+    $doc->setMultiValue('tm_name', $node->field_profile_first_name[0]['value']);
+    $doc->setMultiValue('tm_name', $node->field_profile_last_name[0]['value']);
+    if (function_exists("node_title")) {
+      $doc->tm_institution = trim(node_title($node->field_institute[0]['nid']));
+    }
+    $doc->tm_city = $node->field_city[0]['value'];
+    $doc->ss_street = $node->field_street[0]['value'];
+    $doc->ss_city = $node->field_city[0]['value'];
+    $doc->ss_department = $node->field_department[0]['value'];
+    $doc->ss_state = $node->field_state[0]['value'];
+    $doc->ss_country = $node->field_country[0]['value'];
+    $user = user_load($node->uid);
+    $doc->ss_useremail = $user->mail;
+    $doc->tm_interests = $node->field_profile_interests[0]['value'];
+    $doc->tm_publication = $node->field_profile_publications[0]['value'];
+    $doc->tm_degrees = $node->field_profile_degree[0]['value'];
+    $doc->tm_certifications = $node->field_profile_certifications[0]['value'];
+    $doc->tm_department = $node->field_department[0]['value'];
+    
+    $doc->tm_ebrole = end($user->roles);
+  }
+  elseif ($node->type == 'discussion' || $node->type == 'curriculum') {
+    $groupid = ($node->og_groups) ? array_shift($node->og_groups) : '';
+    $group_type = ($groupid) ? db_result(db_query('SELECT type FROM {node} WHERE nid=%d', $groupid)) : '';
+    $doc->ts_group_type = $group_type;
+    if ($node->type == 'curriculum') {
+      // Calculate score
+      $value = _calc_score($node);
+      $doc->ps_score_content = ( $value > 0 ) ? $value : 0;
+      if ($node->field_coauthor) {
+        foreach ($node->field_coauthor as $key => $value) {
+          if ($value['uid']) {
+            $doc->setMultiValue('tm_coauthor_id', create_eduauthor($value['uid']));
+            $doc->setMultiValue('tm_coauthor', db_result(db_query("SELECT name from {users} where uid=%d", $value['uid'])));
+          }
+        }
+      }
+      if ($node->field_reviewers) {
+        foreach ($node->field_reviewers as $key => $value) {
+          if ($value['uid']) {
+          $doc->setMultiValue('tm_reviewer_id', create_eduauthor($value['uid']));
+          $doc->setMultiValue('tm_reviewer',  db_result(db_query("SELECT name from {users} where uid=%d", $value['uid'])));
+          }
+        }
+      }
+      // Check if the topic and subtopic will index or not
+      // Topic and subtopic configuration is in apache solr setting configuration.
+      if (variable_get('edubridge_setting_topic', 0) == 1 || variable_get('edubridge_setting_assoc_asset', 0) == 1) {
+        $query = db_query("SELECT T.topic_title, T.topic_id FROM {curriculum_topics} T  WHERE T.cid=%d", $node->nid);
+        if (db_affected_rows()) {
+          while ($row = db_fetch_object($query)) {
+            // check if topic setting is enabled in apache solr setting configuration
+            if (variable_get('edubridge_setting_topic', 0) == 1) {
+              $doc->ts_vid_topic_title .= ' ' . $row->topic_title;
+            }
+            // check if Sub topic setting is enabled in apache solr setting configuration
+            if (variable_get('edubridge_setting_assoc_asset', 0) == 1) {
+              $curriculum_query = db_query("SELECT T.asset, T.title, T.description FROM {curriculum_topics_assets} T  WHERE T.topic_id=%d", $row->topic_id);
+              if (db_affected_rows()) {
+                while ($row_curriculum = db_fetch_object($curriculum_query)) {
+                  if ( (!is_numeric($row_curriculum->asset))) {
+                    $doc->ts_vid_topic_url .= ' ' . apachesolr_clean_text($row_curriculum->asset);
+                  }
+                  else {
+                    $doc->ts_vid_topic_url .= ' '  . db_result(db_query("SELECT title FROM {node} WHERE nid=%d", $row_curriculum->asset));
+                  }
+                  if ($row_curriculum->title) {
+                    $doc->ts_vid_curriculum_title .= ' ' . apachesolr_clean_text($row_curriculum->title);
+                  }
+                  if ($row_curriculum->description) {
+                    $doc->ts_vid_topic_description .= ' ' . apachesolr_clean_text($row_curriculum->description);
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  if (module_exists('fivestar')) {
+    $avg_vote = fivestar_get_votes('node', $node->nid);
+    if (isset($avg_vote['average']['value']) > 0) {
+      $doc->ss_fivestar_widget = theme('fivestar_static', $avg_vote['average']['value']);
+    }
+  }
+  $doc->tm_body = db_result(db_query("SELECT R.body from {node_revisions} R  INNER JOIN {node} N on N.vid = R.vid where N.nid=%d", $node->nid));
+  // For all teasers
+  // For removing whitespaces in teaser  is in eb_others_common.inc
+  if (function_exists('removing_whitespace')) {
+    $doc->tm_teaser = removing_whitespace($node->teaser);
+  }
+  // For og description field will assign 
+  if ($node->og_description) {
+    $og_teaser = function_exists("node_teaser") ? node_teaser($node->og_description, isset($node->format) ? $node->format : NULL) : NULL;
+    $doc->tm_og_teaser = strip_tags($og_teaser);
+  }
+  $user_profile_obj = function_exists("content_profile_load") ? content_profile_load('profile', $node->uid) : NULL;
+  if ($node->taxonomy) {
+    foreach ($node->taxonomy as $key => $value) {
+      $childSynonyms = function_exists("taxonomy_get_synonyms") ? taxonomy_get_synonyms($value->tid) : NULL;
+      // Get synonyms
+      if ($childSynonyms) {
+        foreach($childSynonyms as $childSynonym){
+          $doc->setMultiValue('tm_synonyms', $childSynonym);
+        }
+      }
+      $parents = taxonomy_get_parents($nodeTerm->tid);
+      // Check if the taxonomy have parents
+      if ($parents) {
+        foreach($parents as $parent) {
+          $doc->setMultiValue('tm_synonyms', $parent->name);
+          $synonyms = function_exists("taxonomy_get_synonyms") ? taxonomy_get_synonyms($parent->tid) : NULL;
+          foreach($synonyms as $synonym) {
+            $doc->setMultiValue('tm_synonyms', $synonym);
+          }
+        }
+      }
+      // Check for asset_category taxonomy
+      if ($value->vid == ASSET_CATEGORY) {
+        if ($value->name) {
+          $doc->setMultiValue('tm_asset_category', $value->name);
+        }
+      }
+      // Check for tag taxonomy
+      if ($value->vid == TAGS) {
+        if ($value->name) {
+          $doc->setMultiValue('tm_tag', $value->name);
+        }
+      }
+      // Check for subject taxonomy
+      if ($value->vid == SUBJECT) {
+        if ($value->name) {
+          $doc->setMultiValue('tm_subject', $value->name);
+        }
+      }
+      // Check for discipline taxonomy
+      if ($value->vid == DISCIPLINE) {
+        if ($value->name) {
+          $doc->setMultiValue('tm_discipline', $value->name);
+        }
+      }
+      // Check for Academicc Level taxonomy
+      if ($value->vid == ACADEMIC_LEVEL) {
+        if ($value->name) {
+          $doc->setMultiValue('tm_academiclevel', $value->name);
+        }
+      }
+    }
+  }
+  // Get Comment Setting of each and Every node
+  $name = $user_profile_obj->field_profile_first_name[0]['value'] . '  ' . $user_profile_obj->field_profile_last_name[0]['value'];
+  if ($name) {
+    $doc->tm_author_name = $name;
+  }
+  else {
+    $doc->tm_author_name = $node->name;
+  }
+  // For flag content generation
+   $doc->ss_flag_content = NULL;
+  if ($node->field_institute[0]['nid'] && function_exists("institution_flag")) {
+    $doc->ss_flag_content = institution_flag($node->field_institute[0]['nid']);
+  }
+
+}
+
+/*
+ * It used to modify query for search result.
+ *
+ * This hook is invoked from apachesolr_modify_query() after the query has been modify from the apache solr.  after the type-specific hook_apachesolr_modify_query() has been invoked
+ *
+ * @param $query
+ *       It contains query from apache solr search
+ * @param $params
+ *       It contains indexed variable to pass
+ * @param $caller
+ *
+ * @see _filter_value()
+ *
+ */
+function eb_search_apachesolr_modify_query(&$query, &$params, $caller) {
+  $params['fl'] .= ',ss_authorname, tm_name, tm_institution, format, ss_useremail, ps_score_content, ss_taxonomy_name,  tm_source,  tm_body, tm_author_name, tm_ebrole, tm_subject, tm_asset_category, tm_coauthor, tm_reviewer, tm_discipline, tm_beadseqno, tm_source_id, ss_fivestar_widget, tm_creative_common, tm_teaser, tm_og_teaser, ss_flag_content, ss_beads_stringable_link, tm_mlrstandard';
+  if ($_REQUEST['filters'] == 'type:asset') {
+    $subquery = apachesolr_drupal_query();
+    $subquery->add_filter('type', 'bead');
+    $subquery->add_filter('type', 'quiz');
+    $subquery->add_filter('type', 'asset');
+    //echopre($subquery);
+    $query->add_subquery($subquery, 'OR');
+  }
+ // $query->set_available_sort('ps_score_content', 'asc');
+  $similar_asset_path = '';
+  if ($query->get_path()) {
+    $similar_asset_path = explode('/', $query->get_path());
+    // Check if search results should display asset, quiz, bead in similar asset block
+    $subquery = apachesolr_drupal_query();
+    if ($similar_asset_path[0] == 'similar_asset') {
+      $params['rows'] = 3;
+      $subquery->add_filter('type', 'bead');
+      $subquery->add_filter('type', 'asset');
+      $subquery->add_filter('type', 'quiz');
+      $query->add_subquery($subquery, 'OR');
+      $query->add_filter('-nid', arg(1));
+    }
+    // User name search in popup based on view assignments permission
+    if ($similar_asset_path[0] == 'assignment') {
+      $roles = function_exists("_view_assignment_roles") ? _view_assignment_roles("view assignments") : NULL;
+      if ($roles) {
+        foreach ($roles as $value) {
+          $subquery->add_filter('tm_ebrole', $value);
+        }
+        $query->add_subquery($subquery, 'OR');
+      }
+    }
+    //search results with multiple filters
+    if ($similar_asset_path[0] == 'multiple_filters') {
+      // For cck asset means 3 content type included
+      
+      if ($_GET['filtertype_curriculum']) {$subquery->add_filter('type', $_GET['filtertype_curriculum']);}
+      if ($_GET['filtertype_profile']) {$subquery->add_filter('type', $_GET['filtertype_profile']);}
+      if ($_GET['filtertype_community_interest_group']) {$subquery->add_filter('type', $_GET['filtertype_community_interest_group']);}
+      if ($_GET['filtertype_discussion']) {$subquery->add_filter('type', $_GET['filtertype_discussion']);}
+      
+      // for filter format (html, pdf, quiz)
+      $quiz_flag = false;
+      $asset_flag = false;
+      $str_format = strchr($_SERVER['QUERY_STRING'], 'format_');
+      if ($str_format) {
+        $format = explode("&", $str_format);
+        foreach ($format as $key => $value) {
+          if ($value) {
+            $format_value = explode("=", $value);
+            if ($format_value[1] != 'quiz') {
+              $format_result[] =  $format_value[1];
+              $asset_flag = true;
+            }
+            else {
+              $quiz_flag = true;
+            }
+          }
+        }
+      }
+      // check if filter format equal to quiz and format should not be (html, pdf, image)
+      if ($quiz_flag && $_GET['filtertype_asset'] && !$asset_flag) {  
+        $subquery->add_filter('type', 'quiz');
+      }
+      elseif ($asset_flag && $_GET['filtertype_asset'] && !$quiz_flag) {
+        // check if filter format not equal to quiz and format should be (html, pdf, image)
+        $subquery->add_filter('type', 'asset');
+        $subquery->add_filter('type', 'bead');
+      }
+      elseif ($_GET['filtertype_asset']) {
+        // check if filter format should be (html,pdf, image, quiz) or format should be empty and content type should be asset
+        $subquery->add_filter('type', 'asset');
+        $subquery->add_filter('type', 'bead');
+        $subquery->add_filter('type', 'quiz');
+      }
+      // Above filters are execute in or operations
+      $query->add_subquery($subquery, 'OR');
+      if ($format_result) {
+        // load the apache query again
+        $subquery = apachesolr_drupal_query();
+        foreach ($format_result as $key => $value) {
+          if ($value) {
+            $subquery->add_filter('format', $value);
+          }
+        }
+        $query->add_subquery($subquery, 'OR');
+      }
+     
+      // load the apache query again
+      $subquery = apachesolr_drupal_query();
+      // filter list
+      if ($_GET['tm_discipline']) { $subquery->add_filter('tm_discipline', checkquotes($_GET['tm_discipline'], FALSE, TRUE)); }
+      if ($_GET['name']) { $subquery->add_filter('name', checkquotes($_GET['name'], FALSE, TRUE)); }
+      if ($_GET['tm_coauthor']) {
+        $subquery->add_filter('tm_coauthor', checkquotes($_GET['tm_coauthor'], FALSE, TRUE));
+      }
+      if ($_GET['tm_institution']) {
+        $subquery->add_filter('tm_institution', checkquotes($_GET['tm_institution'], FALSE, TRUE));
+      }
+      if ($_GET['tm_reviewer']) { $subquery->add_filter('tm_reviewer', checkquotes($_GET['tm_reviewer'], FALSE, TRUE)); }
+      if ($_GET['tm_academiclevel']) { $subquery->add_filter('tm_academiclevel', checkquotes($_GET['tm_academiclevel'], FALSE, TRUE)); }
+      if ($_GET['tm_subject']) { $subquery->add_filter('tm_subject', checkquotes($_GET['tm_subject'], FALSE, TRUE)); }
+      if ($_GET['tm_source']) { $subquery->add_filter('tm_source', $_GET['tm_source']); }
+      if ($_GET['tm_mlrstandard']) { $subquery->add_filter('tm_mlrstandard', checkquotes($_GET['tm_mlrstandard'], FALSE, TRUE)); }
+      // for creative common options list in asset
+      if ($_GET['creative_Attribution-NoDerivatives']) { $subquery->add_filter('tm_creative_common', $_GET['creative_Attribution-NoDerivatives']); }
+      if ($_GET['creative_Attribution-NonCommercial']) { $subquery->add_filter('tm_creative_common', $_GET['creative_Attribution-NonCommercial']); }
+      if ($_GET['creative_Attribution-NonCommercial-ShareAlike']) { $subquery->add_filter('tm_creative_common', $_GET['creative_Attribution-NonCommercial-ShareAlike']); }
+      if ($_GET['creative_Attribution-NonCommercial-NoDerivatives']) { $subquery->add_filter('tm_creative_common', $_GET['creative_Attribution-NonCommercial-NoDerivatives']); }
+      // above filters are execute in AND operations
+      $query->add_subquery($subquery, 'AND');
+    }
+  }
+  // Based on create curriculum content permission - curriculum will get listed in search result page
+  if(!user_access('create curriculum content')) {
+    $query->add_filter('-type', 'curriculum');
+  }
+}
+
+/**
+ * Process variables for custom_search.tpl.php.
+ *
+ * @see custom_search.tpl.php
+ * @see theme_custom_search()
+ *
+ */
+function eb_search_preprocess_custom_search(&$vars) {
+  $vars['custom_search'] = $vars['results']['search_view'];
+  $vars['google_search'] = $vars['results']['google_search'];
+  $vars['federated_search'] = $vars['results']['federated_search'];
+  $vars['keyword'] = $vars['results']['result_keyword'];
+}
+
+/**
+ * Implements hook_form_alter() for node_type_form().
+ */
+function eb_search_form_alter(&$form, &$form_state, $form_id) {
+  global $user;
+ // echopre($form_id);
+  switch($form_id) {
+    case 'privatemsg_new':
+      module_load_include('inc', 'eb_search', 'includes/eb_search_solr_admin');
+      // Assign Contact user name
+      if (function_exists("assign_contact_user_value")) {
+        assign_contact_user_value($form);
+      }
+    break;
+    case 'apachesolr_search_bias_form':
+      module_load_include('inc', 'eb_search', 'includes/eb_search_solr_admin');
+      // Scoring Configuration
+      if (function_exists("ranking_configuration")) {
+        ranking_configuration($form);
+      }
+    break;
+    case 'getSolrSearchform':
+     //echopre($form);
+    break;
+  }
+}
+
+/**
+ * Process variables for ebsearch_results.tpl.php.
+ *
+ * The $variables array contains the following arguments:
+ * - $results
+ * - $type
+ *
+ * @see ebsearch_results.tpl.php
+ */
+
+function eb_search_preprocess_ebsearch_results(&$variables){
+  global $user;
+  $keywords = checkquotes(search_get_keys(), TRUE);
+  $variables['search_results'] = '';
+  $i = 0;
+  $variables['class'] = 'inactive';
+  $default = _filter_value($_GET['filters']);
+  $assetcount = $profilecount = 0;
+  if ($variables['results']) {
+    foreach ($variables['results'] as $result) {
+      $variables['search_assets'] .= theme('ebsearch_result', $result, $variables['type']);
+    }
+  }
+  else {
+    $variables['zeroResults'] = '<div class="search-empty-result">Your search - <b>'. check_plain($keywords)  . $extra . '</b> - does not have any Results.  Please  make sure all words are spelled correctly or try a different topic.</div>';
+  }
+
+  $variables['search_key'] = "'" . check_plain($keywords) . "'";
+
+  // Search Result Count and spell check suggestion
+  // get search result count
+
+  $variables['totalCount'] = ($variables['response']->response->numFound > 0) ? 'About ' . $variables['response']->response->numFound . ' results' : 'No results';
+  if (variable_get('apachesolr_search_spellcheck', 1) == 1) {
+    if (isset($response->spellcheck->suggestions) && $response->spellcheck->suggestions) {
+      $suggestions = get_object_vars($response->spellcheck->suggestions);
+      if ($suggestions) {
+        // Get the original query and replace words.
+        $query = apachesolr_current_query();
+
+        foreach ($suggestions as $word => $value) {
+          $replacements[$word] = $value->suggestion[0];
+        }
+        $new_keywords = strtr($query->get_query_basic(), $replacements);
+      }
+      if ($new_keywords) {
+        $variables['new_keyword'] = l($new_keywords, 'ebsearch/results/' . $new_keywords, array('query' => 'filters=' . $_GET['filters']));
+      }
+
+    }
+  }
+  $variables['pager'] = theme('pager', NULL, 5, 0);
+  $variables['template_files'][] = 'ebsearch-results';
+}
+
+/**
+ * Process variables for ebsearch_result.tpl.php.
+ *
+ * The $variables array contains the following arguments:
+ * - $result
+ * - $type
+ *
+ * @see ebsearch_result.tpl.php
+ * @see searchimagefiles()
+ *  - eb_search.inc
+ * @see bookmark_this_link()
+ *  - bookmark.inc
+ * @see teaser_nodes()
+ *  - eb_others.module
+ * @see removing_whitespace()
+ *  is in eb_others_common.inc
+ */
+function eb_search_preprocess_ebsearch_result(&$variables) {
+  global $user, $base_url;
+  //include the required js files
+  drupal_add_js(drupal_get_path('module', 'bookmark'). '/bookmark.js');
+  $result = $variables['result'];
+  $variables['result_type'] = $result['fields']['type'];
+  $nid = $result['fields']['nid'];
+  $variables['url'] = 'node/' . $nid;
+  $variables['author_username'] = function_exists("eb_others_popup_link") ? eb_others_popup_link($result['fields']['tm_author_name'][0], 'user/' .  $result['fields']['uid']) : NULL;
+
+  // For removing whitespaces in teaser
+  if (function_exists('removing_whitespace')) {
+     $variables['body'] = removing_whitespace($result['fields']['tm_teaser'][0]);
+  }
+  $variables['asset_author'] = $result['fields']['ss_authorname'];
+  $variables['contactId'] =  $result['fields']['uid'];
+  $variables['user_url'] = $base_url . '/user/' . $result['fields']['uid'];
+  $variables['firstlastname'] = truncateTextforSearch($result['fields']['tm_name'][0].' '.$result['fields']['tm_name'][1], 30, arg(0), TRUE, FALSE, FALSE);
+  if (function_exists("eb_others_popup_link")) {
+    $variables['firstlastname_link'] = function_exists("eb_others_popup_link") ? eb_others_popup_link($variables['firstlastname'], 'user/' . $result['fields']['uid']) : NULL;
+  }
+
+  $variables['institution'] = truncateTextforSearch($result['fields']['tm_institution'][0], 30, arg(0));
+  $variables['email'] = truncateTextforSearch($result['fields']['ss_useremail'], 60, arg(0));
+  if (function_exists("searchimagefiles")) {
+    //$variables['format'] = searchimagefiles($result['fields']['type'], $result['fields']['uid']);
+    $img_alt = explode("#", searchimagefiles_alt($result['fields']['type'],$result['fields']['format']));
+    $variables['format'] = $img_alt[0];
+  }
+  $variables['source']= $result['fields']['ss_source'];
+  if (function_exists("teaser_nodes")) {
+    $variables['title'] = teaser_nodes($result['title']);
+  }
+  $variables['source'] = $result['fields']['tm_source'][0];
+  // For flag content generation
+  $variables['flag_content'] = $result['fields']['ss_flag_content'];
+
+  
+  $variables['fivestar_widget'] = $result['fields']['ss_fivestar_widget'];
+  if (!empty($result['date'])) {
+    $info['date'] = format_date($result['date'], 'small');
+  }
+
+  if (arg(0) != 'node') {
+    $variables['more_preview'] = l('More',  $variables['url'], array('attributes' => array('nodetype' => $variables['result_type'])));
+    if (function_exists("bookmark_this_link")) {
+      $variables['bookmark_links'] = bookmark_this_link($nid, $result['fields']['type'], $result['title']); // bookmark_this_link() is in bookmark.inc
+    }
+
+    $_SESSION['pre_url'] = $_SERVER['REQUEST_URI'];
+    $variables['beads_stringable_link'] = $result['fields']['ss_beads_stringable_link'];  
+    
+  }
+  switch($result['fields']['type']) {
+    case 'asset':
+      //$variables['format'] = function_exists("searchimagefiles") ? searchimagefiles($result['fields']['type'],$result['fields']['format']) : NULL;
+      $img_alt = explode("#", searchimagefiles_alt($result['fields']['type'],$result['fields']['format']));
+      $variables['format'] = $img_alt[0];
+      // searchimagefiles() is in eb_search.inc
+      if (function_exists("teaser_nodes")) {
+        $variables['image_url'] = l(teaser_nodes(NULL, 'dis_rev_com_image2', $variables['format'], NULL, NULL, $img_alt[1]), $variables['url'], array('attributes' => array('title' =>  $variables['title']), 'html' => 'TRUE'));
+      }
+      // Similar asset block
+      $variables['body'] = $result['fields']['tm_teaser'][0];
+      $variables['asset_category'] = ($result['fields']['tm_asset_category']) ? implode(', ',$result['fields']['tm_asset_category']):'';
+      break;
+    case 'bead':
+      $img_alt = explode("#", searchimagefiles_alt($result['fields']['type'],$result['fields']['format']));
+      $variables['format'] = $img_alt[0];
+      $variables['source'] = $result['fields']['tm_source'][0];
+      $variables['image_url'] = l (teaser_nodes(NULL, 'dis_rev_com_image2', $variables['format'], NULL, NULL, $img_alt[1]), $variables['url'], array('attributes' => array('title' =>  $variables['title']), 'html' => 'TRUE'));
+      $variables['bead_icons'] = '<span class="bead-small-icon"><img  src="' . $base_url . '/' . drupal_get_path('theme', 'educationhub') . '/images/icons/bead_icon_small.png" alt="Bead Icon" title="Bead Icon"/></span>';
+     // Similar asset block
+      $variables['body'] = $result['fields']['tm_teaser'][0];
+      $variables['asset_category'] = ($result['fields']['tm_asset_category']) ? implode(', ',$result['fields']['tm_asset_category']):'';
+      break;
+    case 'profile':
+      $variables['image_url'] = l(teaser_nodes(NULL,'dis_rev_com_image2', $variables['format'], NULL, NULL, $img_alt[1]), $variables['user_url'], array('attributes' => array('title' =>  $variables['firstlastname'], 'class' => 'popups'), 'html' => 'TRUE'));
+      break;
+    case 'community_interest_group':
+      $variables['body'] = ltrim($result['fields']['tm_og_teaser'][0]);
+      $variables['image_url'] = l(teaser_nodes(NULL, 'dis_rev_com_image2', $variables['format'], NULL, NULL, $img_alt[1]), $variables['url'], array('attributes' => array('title' =>  $variables['title']), 'html' => 'TRUE'));
+      break;
+    default:
+      $variables['image_url'] = l (teaser_nodes(NULL, 'dis_rev_com_image2', $variables['format'], NULL, NULL, $img_alt[1]), $variables['url'], array('attributes' => array('title' =>  $variables['title']), 'html' => 'TRUE'));
+      break;
+   
+  }
+   //for similar asset
+  if (isset($result['similar_assets_block'])) {
+    unset($variables['image_url']);
+    unset($variables['fivestar_widget']);
+    unset($variables['flag_content']);
+    $variables['body'] = truncate_utf8($variables['body'], 75, TRUE, TRUE);
+    
+  }
+
+  // Provide alternate search result template.
+  $variables['template_files'][] = 'ebsearch-result';
+}
+
+
+/**
+ * Process variables for mysearch-search-results.tpl.php.
+ *
+ * The $variables array contains the following arguments:
+ * - $results
+ * - $type
+ *
+ * @see mysearch-search-results.tpl.php
+ */
+function eb_search_preprocess_mysearch_search_results(&$variables) {
+  $variables['search_results'] = '';
+
+  if (isset($_GET['filters'])) {
+    $filters = trim($_GET['filters']);
+  }
+  if ($variables['results'] ) {
+    foreach ($variables['results'] as $result) {
+      $variables['search_results'] .= theme('mysearch_search_result', $result, $variables['type']);
+    }
+  }
+  if (arg(0) == 'mysearch') {
+    $response = apachesolr_static_response_cache();
+    if ($filters == 'type:asset'){
+      $variables['total_count'] = $response->facet_counts->facet_fields->type->asset;
+    }
+    elseif ($filters == 'type:profile') {
+      $variables['total_count'] = $response->facet_counts->facet_fields->type->profile;
+    }
+    elseif ($filters == 'type:news') {
+       $variables['total_count'] = $response->facet_counts->facet_fields->type->news;
+    }
+    elseif ($filters == 'type:community_interest_group') {
+       $variables['total_count'] = $response->facet_counts->facet_fields->type->community_interest_group;
+    }
+    else {
+      $variables['total_count'] = $response->facet_counts->facet_fields->type->asset + $response->facet_counts->facet_fields->type->profile + $response->facet_counts->facet_fields->type->news + $response->facet_counts->facet_fields->type->community_interest_group;
+    }
+    if ($_GET['searchs']) {
+      $variables['pager_mars_block'] = theme('pager', NULL, 5, 0);
+    }
+    else {
+      $variables['pager_search_block'] = theme('pager', NULL, 5, 0);
+    }
+  }
+  // Provide alternate search results template.
+  $variables['template_files'][] = 'mysearch-search-results';
+}
+
+/**
+ * Process variables for mysearch-search-result.tpl.php.
+ *
+ * The $variables array contains the following arguments:
+ * - $result
+ * - $type
+ *
+ * @see mysearch-search-result.tpl.php
+ */
+function eb_search_preprocess_mysearch_search_result(&$variables) {
+  $result = $variables['result'];
+  $variables['url'] = check_url($result['link']);
+  $variables['full_title'] = $result['title'];
+  $variables['title'] = truncate_utf8(check_plain($result['title']), 26, TRUE, TRUE);
+  $variables['type'] = $result['fields']['type'];
+  $variables['nid'] = $result['fields']['nid'];
+  $variables['taxonomy_name'] = $result['fields']['ss_taxonomy_name'];
+  if($result['fields']['type'] == "asset") {
+    $variables['class_type'] = "asset-" . strtolower($result['fields']['format']);
+  }
+  elseif($result['fields']['type'] == "bead") {
+    $variables['class_type'] = "bead-" . strtolower($result['fields']['format']);
+  }
+  elseif($result['fields']['type'] == "quiz") {
+    $variables['class_type'] = "quiz-nodoc";
+  }
+  else {
+   $variables['class_type'] = "curriculum-nodoc";
+  }
+  $info = array();
+  if (!empty($result['type'])) {
+    $info['type'] = check_plain($result['type']);
+  }
+  if (!empty($result['user'])) {
+    $info['user'] = $result['user'];
+  }
+  if (!empty($result['date'])) {
+    $info['date'] = format_date($result['date'], 'small');
+  }
+  if (isset($result['extra']) && is_array($result['extra'])) {
+    $info = array_merge($info, $result['extra']);
+  }
+  // Check for existence. User search does not include snippets.
+  $variables['snippet'] = isset($result['snippet']) ? $result['snippet'] : '';
+  // Provide separated and grouped meta information..
+  $variables['info_split'] = $info;
+  $variables['info'] = implode(' - ', $info);
+  // Provide alternate search result template.
+  $variables['template_files'][] = 'mysearch-search-result';
+}
+
+/**
+ * Process variables for mysearch_results.tpl.php.
+ *
+ * @see mysearch_results.tpl.php
+ * @see theme_mysearch_results()
+ *
+ */
+function eb_search_preprocess_mysearch_results(&$vars) {
+  $vars['custom_search'] = $vars['results']['search_view'];
+}
+
+/**
+ * The search results page can be themed/customized. This is the
+ * function for theming the Business search results page.
+ *
+ * The input is a "results" array.
+ *
+ * Component 'items' is an array of search results,
+ * where each item is an array with the
+ * following components (not all are displayed in this default function):
+ *   'url' - URL of search result
+ *   'title' - Title of search result
+ *   'crawldate' - Date page was last indexed by Google
+ *   'excerpt' - Excerpt of page with search terms highlighted
+ *   'lang' - Google's guess as to the language of the search result
+ *   'crowd_host' - Indicates that lots more results were found on this
+ *      host, and you could do another query on this host to find more
+ *      results (value is a URL-encoded host name to be used in a query)
+ *
+ * Components 'from', 'to', and 'total'
+ * indicate "Viewing results [from] to [to] of approximately [total]'.
+ *
+ *
+ */
+function eb_search_preprocess_google_cse_xml_results(&$variables) {
+  global $base_url, $user;
+  $results = $variables['form'];
+  //load clientside validation js.
+  drupal_add_js(drupal_get_path('module', 'clientside_validation') . '/clientside_validation.js', 'footer');
+
+  $variables['prefix'] = filter_xss_admin(variable_get('google_cse_results_prefix', ''));
+  $variables['suffix'] = filter_xss_admin(variable_get('google_cse_results_suffix', ''));
+  $variables['results_searchbox_form'] = $variables['form'] ? drupal_get_form('google_cse_results_searchbox_form', $variables['self']) : '';
+
+  $variables['header'] = check_plain(variable_get('google_cse_results_title', t('Search Results')));
+
+  $variables['has_results'] = !(empty($results) || empty($results['items']));
+  $variables['no_results'] = $variables['form']['noresult_txt'];
+
+  $variables['pager_status'] = t('!from to !to of !total',
+           array(
+             '!from' => intval($results['from']),
+             '!to' => intval($results['to']),
+             '!total' => intval($results['total'])
+             )
+           );
+
+  $perpage = variable_get('google_cse_results_num', 10);
+  $query = array('query' => $_GET['query']);
+
+  if ($results['from'] > 1) {
+    $newstart = intval($results['from']) - $perpage - 1;
+    if ($newstart < 0) {
+      $newstart = 0;
+    }
+    $query['start'] = $newstart;
+
+    $variables['pager_prev'] = l(t('Previous page'),
+                                 variable_get('google_cse_results_path', 'search/google'),
+                                 array('query' => drupal_query_string_encode($query)));
+  }
+
+  if ($results['to'] < $results['total']) {
+    $query['start'] = intval($results['to']);
+
+    $variables['pager_next'] = l(t('Next page'),
+                                 variable_get('google_cse_results_path', 'search/google'),
+                                 array('query' => drupal_query_string_encode($query)));
+  }
+
+  $variables['original_query'] = preg_replace('/ more:[^&]*/', '', $_GET['query']);
+  $variables['has_refinements'] = count($results['labels']) == TRUE;
+
+  if ($variables['has_refinements']) {
+    $variables['refinements_label'] = t('Refine results for');
+    $variables['refinements'] = array();
+
+    preg_match('/ more:([^&]*)/', $_GET['query'], $selected_label);
+    $selected_label = $selected_label[1];
+
+    foreach ($results['labels'] as $label => $title) {
+      $selected = ($label == $selected_label) ? ' selected' : '';
+      $classes = "google-cse-refinements-label" . $selected;
+      $attributes = drupal_attributes(array('class' => $classes));
+      $new_query['query'] = $variables['original_query'] . " more:$label";
+      $link =  l(t($title),
+               variable_get('google_cse_results_path', 'search/google'),
+               array('query' => drupal_query_string_encode($new_query)));
+      $variables['refinements'][] = array('link' => $link, 'attributes' => $attributes);
+    }
+  }
+
+
+  $variables['results'] = array();
+  foreach ($results['items'] as $item) {
+    if (strpos($item['url'], 'curriki.org') !== false) {
+      $image_link = l (theme('imagecache', 'dis_rev_com_image2', drupal_get_path('theme', 'educationhub') . '/images/icons/curriki_1.jpg'),  $item['url'], array('attributes' => array('target' =>  '_blank', 'class' => 'modalframe-processed'), 'html' => 'TRUE'));
+    }
+    elseif (strpos($item['url'], 'merlot.org') !== false) {
+      $image_link = l (theme('imagecache', 'dis_rev_com_image2', drupal_get_path('theme', 'educationhub') . '/images/icons/merlot_1.jpg'),  $item['url'], array('attributes' => array('target' =>  '_blank', 'class' => 'modalframe-processed'), 'html' => 'TRUE'));
+    }
+    elseif (strpos($item['url'], 'oercommons.org') !== false) {
+      $image_link = l(theme('imagecache', 'dis_rev_com_image2', drupal_get_path('theme', 'educationhub') . '/images/icons/oercommons.jpg'), $item['url'], array('html' => TRUE, 'attributes' => array('target' => '_blank', 'class' => 'modalframe-processed')));
+    }
+    elseif (strpos($item['url'], 'cnx.org') !== false) {
+      $image_link = l (theme('imagecache', 'dis_rev_com_image2', drupal_get_path('theme', 'educationhub') . '/images/icons/cnx.jpg'),  $item['url'], array('attributes' => array('target' =>  '_blank', 'class' => 'modalframe-processed'), 'html' => 'TRUE'));
+    }
+    elseif (strpos($asset, 'free.ed.gov') !== false) {
+        $image_link = l (theme('imagecache', 'dis_rev_com_image2', drupal_get_path('theme', 'educationhub') . '/images/icons/free-ed_1.jpg'),  $item['url'], array('attributes' => array('target' =>  '_blank', 'class' => 'modalframe-processed'), 'html' => 'TRUE'));
+    }
+    elseif (strpos($item['url'], 'khanacademy.org') !== false) {
+      $image_link = l(theme('imagecache', 'dis_rev_com_image2', drupal_get_path('theme', 'educationhub') . '/images/icons/khanacademy.jpg'), $item['url'], array('html' => TRUE, 'attributes' => array('target' => '_blank', 'class' => 'modalframe-processed')));
+    }
+    else {
+      $image_link = l (theme('imagecache', 'dis_rev_com_image2', drupal_get_path('theme', 'educationhub') . '/images/icons/nodoc.jpg'),  $item['url'], array('attributes' => array('target' =>  '_blank', 'class' => 'modalframe-processed'), 'html' => 'TRUE'));
+    }
+    $link = l($item['title'], $item['url'], array('html' => TRUE, 'attributes' => array('target' => '_blank', 'class' => 'modalframe-processed')));
+    $filtered_excerpt = filter_xss_admin(preg_replace('/<br>/', '', $item['excerpt']));
+	$url = t($item['url']);
+
+    $bookmark = bookmark_this_link(urldecode($item['url']), 'federated', $item['title'], $item['excerpt']);
+    $recommend = NULL;
+    if(module_exists('recommend') && user_access("access recommend")) {
+      // Display Recommended Links
+      $recommend = l(theme_image(drupal_get_path('theme', 'educationhub') .'/images/icons/recommend.png', 'Recommend', 'Recommend'), NULL, array('html' =>TRUE, 'attributes' => array('title' => 'Recommend')));
+    }
+    $variables['results'][] = array('title' => $link, 'excerpt' => $filtered_excerpt, 'url' => $url, 'image' => $image_link, 'bookmark' => $bookmark, 'recommend' => $recommend);
+  }
+  //Bring Recommend form in Affiliated Search result content area.
+  
+  $recommend_form = NULL;
+  if(module_exists('recommend') && user_access("access recommend")){
+    $recommend_form = drupal_get_form('recommend_form');
+  }
+  $variables['recommend_form'] = $recommend_form;
+  //Bring User's name in Jquery Settings variable
+  drupal_add_js(array(
+      'search_recommend' => array(
+        'user_name' => $user->name,
+      )
+    ), 'setting');
+}
+
+/**
+ * Process variables for filterbyauthorasset.tpl.php.
+ *
+ * @see filterbyauthorasset.tpl.php
+ * @see theme_filterbyauthorasset()
+ *
+ */
+function eb_search_preprocess_filterbyauthorasset(&$variables) {
+  if ($variables['results']) {
+    $keywords = checkquotes(search_get_keys());
+    $i = 1;
+    $author = array();
+
+    foreach ($variables['results'] as $value) {
+      if ($value['fields']['tm_source'][0]) {
+        $source[] = $value['fields']['tm_source'][0];
+        $variables['source_value'][$value['fields']['tm_source'][0]] = l(truncate_utf8($value['fields']['tm_source'][0], 8, true, false), 'ebsearch/results/' . $keywords , array ('attributes' => array('type' => trim(truncate_utf8($value['fields']['tm_source'][0], 8, true, false))), 'query' => 'filters=type:' . $variables['type'] . ' AND tm_source:' . $value['fields']['tm_source'][0] . '&solr'));
+      }
+
+    }
+    $variables['filterdate'] = drupal_get_form('filterbydate_form', $keywords);
+    if ($_GET['filtertype_profile']) {
+      $variables['insititution'] = drupal_get_form("getSolrSearchform", NULL, 'search-institute-filter', 'Search Institute');
+    }
+    if ($_GET['filtertype_asset']) {
+      $variables['source'] = pagination_facet_list($source,  $variables['source_value'], 'source-list-bead-filter', 'source', 'block', true);
+      $variables['filterformat'] = drupal_get_form('filterbyformat_form', $variables['results']);
+      $variables['creative_common'] = drupal_get_form('creativecommon_form');
+      if (module_exists("eb_hierarchical_select_ext")) {
+        $variables['mlr_standard'] = drupal_get_form('getSolrSearchform', NULL, 'search-mlrstandard-filter', 'Search MLR Standard');
+      }
+
+    }
+    if ($_GET['filtertype_curriculum'] || $_GET['filtertype_community_interest_group'] || $_GET['filtertype_discussion'] || $_GET['filtertype_asset']) {
+      $variables['author'] = drupal_get_form("getSolrSearchform", NULL, 'search-author-filter', 'Search Author');
+    }
+    if ($_GET['filtertype_curriculum'] ||  $_GET['filtertype_asset']) {
+      $variables['co_author'] = drupal_get_form("getSolrSearchform", NULL, 'search-coauthor-filter', 'Search Co Author');
+      $variables['reviewer'] = drupal_get_form("getSolrSearchform", NULL, 'search-reviewer-filter', 'Search Reviewers');
+
+    }
+    if ($_GET['filtertype_curriculum'] ||  $_GET['filtertype_asset'] || $_GET['filtertype_profile']) {
+      $variables['subject'] = drupal_get_form("getSolrSearchform", NULL, 'search-subject-filter', 'Search Subject');
+      $variables['academic_level'] = drupal_get_form("getSolrSearchform", NULL, 'search-academic-filter', 'Search Academic Level');
+    }
+
+  }
+  $variables['template_files'][] = 'filterbyauthorasset';
+}
+
+/**
+ * Returns HTML .
+ *
+ * @param $facet
+ *    It contains array of strings
+ *
+ * @param $facet_value
+ *   It contains facet value to push in that constructed value
+ *
+ * @param $page
+ *     It contains strings for themed pagination result
+
+ * @param $display
+ *     It contains string for none or block for define specific div will display or not
+ *
+ * @param  $ajax_page
+ *     It contains string for pagination function
+ *
+ * @return
+ *   It returns themed result with paginations
+ *
+ * @ingroup themeable
+ */
+function theme_facet_list($facets, $page, $class_page, $display, $ajax_page) {
+  $facets_value = '<div  class="' . $ajax_page . ' clearfix" style="display:' . $display . '"><ul class="float-left">';
+  foreach ($facets as $value) {
+    $facets_value .= '<li> <div  class="search-links ' . $class_page . '">' . $value . '</div> </li>';
+  }
+  $facets_value .=  '</ul><div class="pager-common float-right">' . $page . '</div></div>';
+  return $facets_value;
+}
+/**
+ *  specified node exclude from index in apache solr search
+ *
+ * This hook is invoked from apachesolr_node_exclude() after the node has been indexed from the update index table in the database. after the type-specific hook_apachesolr_node_exclude() has been invoked
+ *
+ * @param $node
+ *    The node that is being exclude
+ *
+ * @return
+ *  It returs true or false
+ *
+ *
+ */
+function eb_search_apachesolr_node_exclude($node) {
+  if (($node->type == "curriculum" || $node->type == "asset" || $node->type == "quiz") && $node->field_published[0]['value'] != 1) {
+    apachesolr_delete_node_from_index($node);
+    return TRUE;
+  }
+}
+
+
+/*
+ * Returns HTML for a similar_block_title
+ *
+ * @param   $search_value
+ *  A string contating Search keyword
+ *
+ * @return
+ *  it return similar asset title and link in HTML format
+ */
+function theme_similar_block_title($search_value, $sim_asset) {
+  global $base_url;
+  return '<div class="title-bg title-arrow-bg clearfix sidebar-info-block common-list-wrapper"><h2>' . t('Similar Assets') . '</h2><div class="similar-assets-block"><ul>' . $sim_asset . '</ul></div><div class="similar-assets-more"><span>'.l('More...', 'ebsearch/results/' . $search_value . '/' , array( 'attributes' => array('title' => 'More Similar Assets'), 'html' => TRUE, 'query' => 'filters=type:asset&solrsort=ps_score_content desc')) . '</span></div></div>';
+}
+
+/**
+ * Process variables for username_search_results.tpl.php.
+ *
+ * The $variables array contains the following arguments:
+ * - $results
+ * - $type
+ *
+ * @see username-search-results.tpl.php
+ */
+function eb_search_preprocess_username_search_results(&$variables) {
+  global $user;
+  $keywords = checkquotes(search_get_keys(), TRUE);
+  $variables['submit_button'] = '';
+   // Spell check suggestion will get generated
+  $response = apachesolr_static_response_cache();
+  if ($variables['results']['username_results']) {
+
+  //Bring Select All form.
+  $variables['select_all_form'] = drupal_get_form('select_all_form');
+    foreach ($variables['results']['username_results'] as $result) {
+      $variables['username_result'] .= theme('username_search_result', $result, $variables['type']);
+    }
+    // Search Result Count
+    // To show the result count
+    $count_result = $response->facet_counts->facet_fields->type->profile ? $response->facet_counts->facet_fields->type->profile: 0;
+    //In new design we no need to show the Search result count.
+    //$variables['totalCount'] =  'About ' .  $count_result . ' results';
+
+    //For User Search popup we need to bring Add button only.
+    $popup = TRUE;
+    $variables['submit_button'] = drupal_get_form('username_submit_form', $popup);
+  }
+  else {
+     $variables['zeroResults'] = '<div class="search-empty-result">Your search - <b>'. check_plain($keywords) .'</b> - does not have any Results.  Please make sure all words are spelled correctly or try different topic.</div>';
+  }
+  // Check Spell check suggestion is enabled
+  if (variable_get('apachesolr_search_spellcheck', 1) == 1) {
+    if (isset($response->spellcheck->suggestions) && $response->spellcheck->suggestions) {
+      $suggestions = get_object_vars($response->spellcheck->suggestions);
+      if ($suggestions) {
+        // Get the original query and replace words.
+        $query = apachesolr_current_query();
+
+        foreach ($suggestions as $word => $value) {
+          $replacements[$word] = $value->suggestion[0];
+        }
+        $new_keywords = strtr($query->get_query_basic(), $replacements);
+      }
+      if ($new_keywords) {
+        $variables['new_keyword'] = l($new_keywords, 'mysearch/results/' . $new_keywords, array('query' => 'filters=' . $_GET['filters']));
+      }
+
+    }
+  }
+  $variables['pager'] = theme('pager', NULL, 5, 0);
+  $variables['template_files'][] = 'username-search-results';
+}
+/**
+ * Process variables for username_search_result.tpl.php.
+ *
+ * The $variables array contains the following arguments:
+ * - $result
+ * - $type
+ *
+ * @see username_search_result.tpl.php
+ */
+function eb_search_preprocess_username_search_result(&$variables) {
+  global $user, $base_url;
+ //include the required js files
+  drupal_add_js(drupal_get_path('module', 'bookmark'). '/bookmark.js');
+
+  $result = $variables['results'];
+
+  $variables['result_type'] = $result['fields']['type'];
+  $uid = $result['fields']['uid'];
+  if (function_exists("searchimagefiles")) {
+    $format = searchimagefiles($result['fields']['type'], $result['fields']['uid']);
+  }
+  $variables['firstlastname'] = truncateTextforSearch($result['fields']['tm_name'][0] . ' ' . $result['fields']['tm_name'][1], 30, TRUE);
+  $variables['mail'] = user_load(array('uid' => $result['fields']['uid']))->mail;
+  $variables['institution'] = truncateTextforSearch($result['fields']['tm_institution'][0], 30, TRUE);
+  if (function_exists("teaser_nodes")) {
+    $variables['title'] = teaser_nodes($result['title']); // teaser_nodes() is in eb_others.module
+    $variables['image_url'] = teaser_nodes(NULL, 'dis_rev_com_image2', $format); // teaser_nodes() is in eb_others.module
+  }
+
+  $variables['assigned_user'] = '';
+  $previous_path = $_SERVER['HTTP_REFERER'];
+  $path = explode("/",  $previous_path);
+  // @todo saravana if arg = assignmetn do below. deault value of disabled is false.
+  $disable = FALSE;
+  // It is used to check whether that user was already assigned in Assignment form. For Recommend form we no need to work on Readonly user's field.
+  if(arg(1) == 'assignment' && function_exists("_assigned_user")){
+    if(_assigned_user($uid, $path[5], $path[6]) && is_numeric($path[5]) && is_numeric($path[6])) {
+      $variables['assigned_user'] = ' selected-author';
+      $disable = TRUE;
+    }
+    else {
+      $disable = FALSE;
+    }
+  }
+
+  //Pass disable attributes to that checkbox if that user is assigned
+  $variables['checkbox_form'] = drupal_get_form('username_search_form', $variables['mail'], $uid, $disable);
+
+  // Provide alternate search result template.
+  $variables['template_files'][] = 'username-search-result';
+
+}
+/**
+ * Check if the user is already assigned to that curriculum subtopic
+ * TODO: this function will move to assignment.module
+ *
+ * @param $uid
+ *  It contains user id
+ * @param $cid
+ *  It contains curriculum id
+ * @param $st_id
+ *  It contains subtopic id of that curriculum
+ *
+ * @return
+ *   TRUE if the user already assigned otherwise it returns FALSE
+ */
+function _assigned_user($uid, $cid = NULL, $st_id =NULL) {
+  $query = db_result(db_query("SELECT count(*) FROM {assignment} A INNER JOIN {curriculum_topics_assets} CST ON CST.id = A.st_id INNER JOIN {curriculum_topics} CT ON CT.topic_id = CST.topic_id WHERE A.to_uid=%d AND CT.cid=%d AND CST.id=%d", $uid, $cid, $st_id));
+  if ($query > 0) {
+    return TRUE;
+  }
+  return FALSE;
+}
+/**
+ * It calculate the score
+ *
+ * Score is based on bookmark, recommend, associated with asset and curriculum, ratings
+ *
+ * @param $node
+ *  It contains node object
+ *
+ * @return $value
+ *  It returns score value
+ *
+ */
+function _calc_score($node) {
+  $recommend_teacher_settings = variable_get('apachesolr_recommend_teacher_boost', '0');
+  $recommend_student_settings = variable_get('apachesolr_recommend_student_boost', '0');
+  $bookmark_teacher_settings = variable_get('apachesolr_bookmark_teacher_boost', '0');
+  $bookmark_student_settings = variable_get('apachesolr_bookmark_student_boost', '0');
+
+  //$asset_used_settings = variable_get('apachesolr_asset_used_boost', '0');
+  $asset_used_curri_settings = variable_get('apachesolr_asset_used_curri_boost', '0');
+  $rating_teacher_settings = variable_get('apachesolr_rating_teacher_boost', '0');
+  $rating_student_settings = variable_get('apachesolr_rating_student_boost', '0');
+
+  $rating_teacher_settings = ($rating_teacher_settings>0)?($rating_teacher_settings/10):0;
+  $rating_student_settings = ($rating_student_settings>0)?($rating_student_settings/10):0;
+
+  $query = db_result(db_query('SELECT COUNT(*) AS book_cnt FROM {bookmark} WHERE asset=%d and rid=3', $node->nid));
+  $book_used_cnt_teacher = $query*$bookmark_teacher_settings;
+
+  $query = db_result(db_query('SELECT COUNT(*) AS book_cnt FROM {bookmark} WHERE asset=%d and rid=2', $node->nid));
+  $book_used_cnt_student = $query*$bookmark_student_settings;
+
+  $query = db_result(db_query('SELECT COUNT(*) AS recommend_cnt FROM {recommend} WHERE asset=%d and from_rid=3', $node->nid));
+  $recommend_used_cnt_teacher = $query * $recommend_teacher_settings;
+
+  $query = db_result(db_query('SELECT COUNT(*) AS recommend_cnt FROM {recommend} WHERE asset=%d and from_rid=2', $node->nid));
+  $recommend_used_cnt_student = $query * $recommend_student_settings;
+  if ($node->type == 'curriculum') {
+		$query = db_result(db_query('SELECT COUNT(*) FROM {clone_tracking} where original_id=%d', $node->nid));
+		$asse_used_curri_cnt = $query * $asset_used_curri_settings;
+	}
+	else {
+		$query = db_result(db_query('SELECT COUNT(*) AS asset_curri_cnt FROM {asset_tracking} WHERE asset_id=%d', $node->nid));
+		$asse_used_curri_cnt = $query * $asset_used_curri_settings;
+	}
+
+  $voting_student = 0;
+  $query = db_query('SELECT sum(value) AS sum_value, COUNT(*) as t_cnt FROM {votingapi_vote} WHERE content_id=%d and roles=2', $node->nid);
+  $obj = db_fetch_object($query);
+  if ($obj->sum_value && $obj->t_cnt) {
+    $voting_student = (($obj->sum_value/$obj->t_cnt) * ($rating_teacher_settings)) /100;
+  }
+  $voting_teacher = 0;
+  $query = db_query('SELECT sum(value) AS sum_value, COUNT(*) as t_cnt  FROM {votingapi_vote} WHERE content_id=%d and roles=3', $node->nid);
+  $obj = db_fetch_object($query);
+
+  if ($obj->sum_value && $obj->t_cnt) {
+    $voting_teacher = (($obj->sum_value/$obj->t_cnt) * ($rating_student_settings)) / 100;
+  }
+//  Assign score count to this field
+  $value = ( $book_used_cnt_teacher + $book_used_cnt_student + $recommend_used_cnt_teacher + $recommend_used_cnt_student + $voting_student + $voting_teacher + $asse_used_curri_cnt ) / 100;
+  return $value;
+}
+
+
+
+/**
+ * icons based on this function
+ *
+ * search page have the icons for both asset, people, curriculum, quiz, bead, community, discussion, default image.
+ *
+ * @param $type
+ *   It contains string: content type
+ * @param $value
+ *   It contains string: eg: pdf, image, video, audio, html for asset or bead format
+ * @param $direct_path
+ *   (optional) string if Third should be done. Defaults to empty.
+ *   It contains string: for direct path we pass to the return image
+ *
+ * @return $return_image
+ *  It contains string of  image path
+ *
+ */
+function searchimagefiles($type, $value = NULL, $direct_path = ''){
+  if ($type == 'asset' || $type == 'bead'  ) {
+    switch ($value){
+	 case 'PDF':
+	   $return_image = drupal_get_path('theme', 'educationhub') . '/images/icons/pdf-icon.png';
+	   break;
+	 case 'IMAGE':
+	   $return_image = drupal_get_path('theme', 'educationhub') . '/images/icons/img-icon.png';
+	   break;
+	 case 'VIDEO':
+	   $return_image = drupal_get_path('theme', 'educationhub') . '/images/icons/video-icon.png';
+	   break;
+	 case 'HTML':
+	   $return_image = drupal_get_path('theme', 'educationhub') . '/images/icons/html-icon.png';
+	   break;
+    case 'DOCUMENT':
+	   $return_image = drupal_get_path('theme', 'educationhub') . '/images/icons/doc-icon.png';
+	   break;
+    case 'EXCEL':
+	   $return_image = drupal_get_path('theme', 'educationhub') . '/images/icons/xls-icon.png';
+	   break;
+    case 'PRESENTATION':
+	   $return_image = drupal_get_path('theme', 'educationhub') . '/images/icons/ppt-icon.png';
+	   break;
+	 default:
+	   $return_image = drupal_get_path('theme', 'educationhub') .  '/images/icons/nodoc.jpg';
+	   break;
+    }
+  }
+  elseif ($type == 'profile') {
+    if (!empty($value)) {
+      if (!empty($direct_path)) {
+        $user = new stdClass();
+        $user->picture = $direct_path;
+      }
+      else {
+        $user = user_load($value);
+      }
+      if (!empty($user->picture)) {
+        $picture = $_SERVER["DOCUMENT_ROOT"].'/'.$user->picture;
+      }
+      if (file_exists($picture)) {
+        $return_image = $user->picture;
+      }
+      else {
+        $return_image = drupal_get_path('theme', 'educationhub') . '/images/icons/avator.jpg';
+      }
+    }
+  }
+  elseif ($type == 'news') {
+    $return_image = drupal_get_path('theme', 'educationhub') . '/images/icons/news.gif';
+  }
+  elseif ($type == 'community_interest_group') {
+    $return_image = drupal_get_path('theme', 'educationhub') . '/images/icons/community-icon.png';
+  }
+  elseif ($type == 'curriculum') {
+    $return_image = drupal_get_path('theme', 'educationhub') . '/images/icons/Curriculum_small.jpg';
+  }
+  elseif ($type == 'quiz') {
+    $return_image = drupal_get_path('theme', 'educationhub') . '/images/icons/quiz_icon.jpg';
+  }
+  elseif ($type == 'discussion') {
+    $return_image = drupal_get_path('theme', 'educationhub') . '/images/icons/discussion-icon.png';
+  }
+  else {
+    $return_image = drupal_get_path('theme', 'educationhub') . '/images/icons/nodoc.jpg';
+  }
+  return $return_image;
+}
+
+
+/**
+ * icons based on this function
+ *
+ * search page have the icons for both asset, people, curriculum, quiz, bead, community, discussion, default image.
+ *
+ * @param $type
+ *   It contains string: content type
+ * @param $value
+ *   It contains string: eg: pdf, image, video, audio, html for asset or bead format
+ * @param $direct_path
+ *   (optional) string if Third should be done. Defaults to empty.
+ *   It contains string: for direct path we pass to the return image
+ *
+ * @return $return_image
+ *  It contains string of  image path
+ *
+ */
+function searchimagefiles_alt($type, $value = NULL, $direct_path = ''){
+  if ($type == 'asset' || $type == 'bead'  ) {
+    switch ($value){
+	 case 'PDF':
+	   $image = drupal_get_path('theme', 'educationhub') . '/images/icons/pdf-icon.png';
+           $alt = "PDF";
+	   break;
+	 case 'IMAGE':
+	   $image = drupal_get_path('theme', 'educationhub') . '/images/icons/img-icon.png';
+          $alt = "IMAGE";
+	   break;
+	 case 'VIDEO':
+	   $image = drupal_get_path('theme', 'educationhub') . '/images/icons/video-icon.png';
+          $alt = "VIDEO";
+	   break;
+	 case 'HTML':
+	   $image = drupal_get_path('theme', 'educationhub') . '/images/icons/html-icon.png';
+          $alt = "HTML";
+	   break;
+    case 'DOCUMENT':
+	   $image = drupal_get_path('theme', 'educationhub') . '/images/icons/doc-icon.png';
+           $alt = "DOCUMENT";
+	   break;
+    case 'EXCEL':
+	   $image = drupal_get_path('theme', 'educationhub') . '/images/icons/xls-icon.png';
+           $alt = "EXCEL";
+	   break;
+    case 'PRESENTATION':
+	   $image = drupal_get_path('theme', 'educationhub') . '/images/icons/ppt-icon.png';
+           $alt = "PRESENTATION";
+	   break;
+	 default:
+	   $image = drupal_get_path('theme', 'educationhub') .  '/images/icons/nodoc.jpg';
+           $alt = "No Document";
+	   break;
+    }
+  }
+  elseif ($type == 'profile') {
+    if (!empty($value)) {
+      if (!empty($direct_path)) {
+        $user = new stdClass();
+        $user->picture = $direct_path;
+      }
+      else {
+        $user = user_load($value);
+      }
+      if (!empty($user->picture)) {
+        $picture = $_SERVER["DOCUMENT_ROOT"].'/'.$user->picture;
+      }
+      if (file_exists($picture)) {
+        $image = $user->picture;
+        $alt = "picture";
+      }
+      else {
+        $image = drupal_get_path('theme', 'educationhub') . '/images/icons/avator.jpg';
+        $alt = "picture";
+      }
+    }
+  }
+  elseif ($type == 'news') {
+    $image = drupal_get_path('theme', 'educationhub') . '/images/icons/news.gif';
+    $alt = "NEWS";
+  }
+  elseif ($type == 'community_interest_group') {
+    $image = drupal_get_path('theme', 'educationhub') . '/images/icons/community-icon.png';
+    $alt = "COMMUNITY";
+  }
+  elseif ($type == 'curriculum') {
+    $image = drupal_get_path('theme', 'educationhub') . '/images/icons/Curriculum_small.jpg';
+    $alt = "CURRICULUM";
+  }
+  elseif ($type == 'quiz') {
+    $image = drupal_get_path('theme', 'educationhub') . '/images/icons/quiz_icon.jpg';
+    $alt = "QUIZ";
+  }
+  elseif ($type == 'discussion') {
+    $image = drupal_get_path('theme', 'educationhub') . '/images/icons/discussion-icon.png';
+    $alt = "DISCUSSION";
+  }
+  else {
+    $image = drupal_get_path('theme', 'educationhub') . '/images/icons/nodoc.jpg';
+    $alt = "No Document";
+  }
+  return $image ."#". $alt;
+}
+
+
+/**
+ *  It truncate the given string
+ *
+ * @param $string
+ *   It contains string to be truncate
+ * @param $len
+ *   It contains integer: length to be truncate
+ * @param $url
+ *   It contains string: To check condition if it came from search page otherwise it return string itself
+ * @param $wordsafe
+ * 	(optional) FALSE if Third should be done. Defaults to TRUE.
+ * 	It is used to check whether given string should be safe
+ * @param $dots
+ * 	(optional) TRUE if Third should be done. Defaults to FALSE.
+ * 	It is used to display (.)dots after truncate
+ * @param $check_plain
+ *  It contains FALSE. to check html entities or not
+ */
+function truncateTextforSearch($string, $len, $url, $wordsafe = TRUE, $dots = FALSE, $check_plain = TRUE){
+  if (empty($url))
+    $url = arg(0);
+
+  if ($check_plain) {
+    $string = check_plain($string);
+  }
+  if ($url == 'ebsearch') {
+    $retrunString = truncate_utf8($string, $len, $wordsafe, $dots);
+  }
+  else {
+    $retrunString = $string;
+  }
+  return $retrunString;
+}
+
+
+function checkquotes($keyword, $output_result = FALSE, $filter = FALSE) {
+  if ($filter)  {
+    preg_match_all('/(")/', $keyword, $value);
+    if (count($value[0]) % 2 != 0) {
+      $keyword .= '"';
+    }
+  }
+  elseif (strlen(trim($keyword)) == 1 && strstr(trim($keyword), '"')) {
+    if (!$output_result) {
+      $keyword = NULL;//addslashes($keyword);
+    }
+  }
+  return $keyword;
+}

@@ -1,0 +1,9 @@
+; $Id: comment.info,v 1.0 2011/06/18 $
+name = Changing Comment Form Location
+description = A module which is used to change the comment location to top.
+package = Comment Location
+dependencies[] = comment
+package = Education Bridge
+version = VERSION
+
+core = 6.x

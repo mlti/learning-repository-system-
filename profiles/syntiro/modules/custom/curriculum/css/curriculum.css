@@ -1,0 +1,44 @@
+/* droppable objects - curriculum page*/
+
+
+
+/*.topic-single-content {
+  border: 1px dotted #000;
+  margin: 2px;
+  padding: 2px;
+}*/
+
+.ui-state-highlight {
+  height: 1.5em;
+  line-height: 1.2em;
+}
+
+.handle {
+  cursor: move;
+}
+
+.topic-handle,
+.remove {
+  cursor: pointer;
+}
+
+
+.topics-left-active {
+  background: none repeat scroll 0 0 #FFFFD9;
+  padding: 4px 7px;
+}
+
+/*.ui-state-active {
+  background: #EDF2F8;
+}*/
+
+.custom_message {
+  background: none repeat scroll 0 0 #E6EBEE;
+  border: 1px solid #D5DCE2;
+  color: #333333;
+  font-size: 0.917em;
+  left:4px;
+  padding: 2px 13px;
+  position: absolute;
+  top:4px;
+}

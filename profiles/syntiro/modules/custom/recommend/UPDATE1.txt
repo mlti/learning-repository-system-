@@ -1,0 +1,54 @@
+<!-- Update by Beschi: 28-Feb-2011 starts-->
+
+/*Column Information For - edubridge.recommend*/
+Field        Type              Collation        Null    Key     Default  Extra           
+-----------  ----------------  ---------------  ------  ------  -------  -------------- 
+id           int(10) unsigned  (NULL)           NO      PRI     (NULL)   auto_increment         
+asset        text              utf8_general_ci  NO              (NULL)                          
+from_uid     int(11)           (NULL)           NO              0                                
+from_rid     int(11)           (NULL)           NO              0                              
+to_gid       int(11)           (NULL)           NO              0                        
+to_uid       int(11)           (NULL)           NO              0                        
+type         varchar(255)      utf8_general_ci  YES             (NULL)                   
+title        text              utf8_general_ci  YES             (NULL)                   
+description  text              utf8_general_ci  YES             (NULL)                   
+timestamp    int(11)           (NULL)           YES             0                        
+status       int(11)           (NULL)           NO              0                        
+
+Asset - node id if internal link - direct link will be stored if external link
+to_gid - group id - will be 0 if not applicable
+Status: Deafult: 0
+0 - unread
+1 - read
+
+Status will be 1 when a user opens his recommendation - recommend/open/%id
+
+Recommend Add menu callback: recommend
+Internal - node - recommend/%node_id
+This will get the first argument as node id and save the data
+
+External - recommend?link=...&title=...&desc=...$type=... (google/federated)
+Here no argument, passing the data as query string.
+
+Provide a form with To field, Subject Field and Body field
+Save the data - If group save the group id
+
+Decline - recommend/decline/%recommend
+passing the id of recommend record
+
+View recommendataions: recommendations/%type
+This shows the recommendations sent to the current user
+If no argument is passed then show all the recommendations
+
+If argument passed - show the particular recommendation alone
+Possible types: asset/community.../news/external
+if external - show the types google/federated
+
+
+Admin settings: admin/settings/recommend
+Admin can set the default title and content for the recommendation form
+
+Statistics: admin/reports/recommendations
+Admin can view the statistics report of recommendations
+
+<!-- Update by Beschi: 28-Feb-2011 ends-->

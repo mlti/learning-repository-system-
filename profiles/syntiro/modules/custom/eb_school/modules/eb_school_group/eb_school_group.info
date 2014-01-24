@@ -1,0 +1,7 @@
+; $Id:
+name = eb_school_group
+description = EduBridge School Group Management
+core = 6.x
+package = School Group
+dependencies[] = eb_school
+

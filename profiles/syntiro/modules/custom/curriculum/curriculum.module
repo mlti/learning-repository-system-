@@ -1,0 +1,1473 @@
+<?php
+// to include curriculum_pdf.inc in module file for permission issues.
+module_load_include('inc', 'curriculum', 'includes/curriculum_pdf.inc');
+
+/**
+* Implementation of hook_menu().
+*
+*/
+function curriculum_menu() {
+  $items = array();
+  $items['curriculum/%node/overview/pdf'] = array(
+    'title' => 'Plalylist PDF',
+    'page callback' => 'curriculum_overview_pdf',
+    'page arguments' => array(1),
+    'access callback' => 'view_asset_curriculum_access',// This fuction is in eb_others.module
+    'access arguments' => array(1),
+    'file' => 'includes/curriculum_pdf.inc',
+  );
+  $items['curriculum/%node/overview/word'] = array(
+    'title' => 'Plalylist Word',
+    'page callback' => 'curriculum_overview_word',
+    'page arguments' => array(1),
+    'access callback' => 'node_access',
+    'access arguments' => array('view', 1),
+    'file' => 'node.pages.inc',
+    'file path' => drupal_get_path('module', 'node'),
+
+  );
+  $items['curriculum/%node/add_edit_topic'] = array(
+    'page callback' =>'drupal_get_form',
+    'page arguments' =>array('curriculum_edit_topic_form'),
+    'access arguments' => array('create curriculum content'),
+    'file' => 'includes/curriculum_topic_delete.inc',
+    'type' => MENU_CALLBACK,
+  );
+  $items['curriculum/%node/add_edit_desc'] = array(
+    'page callback' =>'drupal_get_form',
+    'page arguments' =>array('curriculum_edit_desc_form'),
+    'access arguments' => array('create curriculum content'),
+    'type' => MENU_CALLBACK,
+    'file' => 'includes/curriculum_topic_delete.inc',
+  );
+  $items['curriculum/delete_topic_confirm'] = array(
+    'title' => 'Delete Topic',
+    'description' => 'Delete topic',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('delete_topic_confirm_form'),
+    'access arguments' => array('create curriculum content'),
+    'type' => MENU_CALLBACK,
+    'file' => 'includes/curriculum_topic_delete.inc',
+  );
+  $items['curriculum/order_topics'] = array(
+    'page callback' =>'curriculum_order_topics',
+    'access arguments' => array('create curriculum content'),
+    'type' => MENU_CALLBACK,
+    'file' => 'includes/curriculum.inc',
+  );
+  $items['curriculum/add_edit_content'] = array(
+    'page callback' =>'curriculum_edit_content',
+    'access arguments' => array('create curriculum content'),
+    'type' => MENU_CALLBACK,
+    'file' => 'includes/curriculum.inc',
+  );
+
+  //delete the content - using confirm popup
+  $items['curriculum/delete_content_confirm'] = array(
+    'title' => 'Remove Content',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('delete_content_confirm_form'),
+    'access arguments' => array('create curriculum content'),
+    'type' => MENU_CALLBACK,
+    'file' => 'includes/curriculum.inc',
+  );
+  $items['curriculum/ajax/delete/%'] = array(
+    'page callback' => 'delete_content_ajax',
+    'access arguments' => array('create curriculum content'),
+    'type' => MENU_CALLBACK,
+    'file' => 'includes/curriculum.inc',
+  );
+  $items['bridge/mycurriculum'] = array(
+    'title' => 'My Playlists',
+    'page callback' => 'mycurriculum_view',
+    'access arguments' => array('view curriculum content'),
+    'type' => MENU_CALLBACK,
+    'file' => 'includes/curriculum.inc',
+  );
+  $items['clone/%node'] = array(
+    'page callback' => 'node_clone',
+    'page arguments' => array(1),
+    'access callback' => 'node_clone_access',
+    'access arguments' => array(1),
+    'file' => 'curriculum.inc',
+    'file path' => drupal_get_path('module', 'curriculum'). '/includes',
+  );
+  $items['curriculum/quickadd_save'] = array(
+    'page callback' => 'playlist_quickadd',
+    'access arguments' => array('create curriculum content'),
+    'type' => MENU_CALLBACK,
+    'file' => 'includes/curriculum_topic_delete.inc',
+  );
+  // Playlist block - ajax load
+  $items['playlist/block'] = array(
+    'page callback' => 'playlist_block_ajax',
+    'access arguments' => array('view curriculum content'),
+    'type' => MENU_CALLBACK,
+    'file' => 'curriculum.inc',
+    'file path' => drupal_get_path('module', 'curriculum'). '/includes',
+  );
+  // Playlist listing - ajax load
+  $items['playlist/listing'] = array(
+    'page callback' => 'playlist_listing_ajax',
+    'access arguments' => array('view curriculum content'),
+    'type' => MENU_CALLBACK,
+    'file' => 'curriculum.inc',
+    'file path' => drupal_get_path('module', 'curriculum'). '/includes'
+  );
+  
+    //save the reorder - using confirm popup
+  $items['curriculum/reorder_curriculum_topics'] = array(
+    'title' => 'Save Reorder',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('reorder_curriculum_topics_confirm_form'),
+    'access arguments' => array('create curriculum content'),
+    'type' => MENU_CALLBACK,
+    'file' => 'includes/curriculum.inc',
+  );
+  
+  $items['curriculum/ajax/update/curriculum/subtopicid/%'] = array(
+    'page callback' => 'curriculum_order_topics',
+    'access arguments' => array('create curriculum content'),
+    'type' => MENU_CALLBACK,
+    'file' => 'includes/curriculum.inc',
+  );
+
+
+  return $items;
+}
+/**
+ * Implemantation of hook_menu_alter()
+ * For all other content types doing normal action
+ */
+function curriculum_menu_alter(&$items) {
+  // For curriculum content title tab name change purpose
+  $items['node/%node/edit']['title callback'] = 'title_change';
+  $items['node/%node/edit']['title arguments'] = array(1);
+
+}
+
+/**
+* Implementation of hook_perm().
+*
+**/
+function curriculum_perm() {
+  return array('view curriculum content');
+}
+
+/**
+* Implementation of hook_theme().
+*
+**/
+function curriculum_theme() {
+  return array(
+    'curriculum_overview' => array(
+      'template' => 'templates/curriculum-overview',
+      'arguments' => array('results' => NULL),
+    ),
+    'curriculum_info' => array(
+      'template' => 'templates/curriculum-info',
+      'arguments' => array('results' => NULL),
+    ),
+    'mycurriculum_view' => array(
+      'template' => 'templates/mycurriculum-view',
+      'arguments' => array('results' => NULL),
+    ),
+    'curriculum_teaser' => array(
+      'template' => 'templates/curriculum-teaser',
+      'arguments' => array('results' => NULL),
+    ),
+    'username_underline' => array(
+      'arguments' => array('values' => NULL),
+    ),
+    'curriculum_basket' => array(
+      'arguments' => array('results' => NULL),
+    ),
+  );
+}
+
+/*
+ * function used to theme the username
+ */
+function theme_username_underline($values) {
+  return '<span style="color:#9d402b; text-decoration:underline;">' . $values . '</span>';
+}
+
+/**
+ *  Implementing hook_form_alter()
+ */
+function curriculum_form_alter(&$form, &$form_state, $form_id) {
+  global  $user;
+
+  switch ($form_id) {
+    case 'curriculum_weight_form':
+      //echo "test";
+      break;
+    case 'curriculum_node_form':
+      drupal_add_js(drupal_get_path('module', 'curriculum') . "/js/curriculum-info.js");
+      // to add + sign in edit page of curriculum - #Fero July 04
+      drupal_add_js(drupal_get_path('module', 'curriculum') . '/js/baskets.js');
+      // setting max length for curriculum title
+      $form['title']['#maxlength'] = 60;
+      //This condition is used to hide the delete button if the curriculum is published.
+      if($form['#node']->field_published[0]['value'] == 1 && !user_access("administer nodes")) {
+        unset($form['buttons']['delete']);
+      }
+      $form['#title'] = 'Playlist';
+      $form['#validate'][] = "curriculum_form_validate";
+      //$form['buttons']['submit']['#submit'][] = 'curriculum_submit';
+      if (arg(1) != 'add') {
+        $form['#redirect'] = 'node/' . arg(1);
+      }
+      $form['body_field']['format']['#prefix'] = "<div style=display:none> ";
+      $form['body_field']['format']['#suffix'] = "</div>";
+      $form['comment_settings']['comment']['#default_value'] = 2;
+      $form['buttons']['#prefix'] = '<div class="button-main">';
+      //Changing co author/reviewers button text - add another item TO add another
+      $form['field_coauthor']['#prefix']='<div style="display:none;">';
+      $form['field_coauthor']['#suffix']='</div>';
+      $form['field_reviewers']['#prefix']='<div style="display:none;">';
+      $form['field_reviewers']['#suffix']='</div>';
+      $form['field_coauthor']['#rules'] = array('coauthor_validate');
+      $form['buttons']['#suffix'] = '</div>';
+      $form['field_published']['#prefix']='<div style="display:none;">';
+      $form['field_published']['#suffix']='</div>';
+      if (arg(1) == 'add') {
+        $form['field_author'][0]['#default_value']['uid'] = $user->uid;
+        $form['comment_settings']['comment']['#default_value'] = 2;
+      }
+      // For co author values changed to autocomplete
+      $co_author = NULL;
+      if ($form['#node']->field_coauthor) {
+        foreach($form['#node']->field_coauthor as $key => $value) {
+          if ($value['uid']) {
+            $co_author_list[] = db_result(db_query("SELECT mail FROM {users} WHERE uid=%d", $value['uid']));
+          }
+        }
+        $co_author = $co_author_list ? implode(", ", $co_author_list) : NULL;
+      }
+      // Reviewers values changed to autocomplete list
+      if ($form['#node']->field_published[0]['value'] == 1) {
+        $reviewers = NULL;
+        if ($form['#node']->field_reviewers ) {
+          foreach($form['#node']->field_reviewers as $key => $value) {
+            if ($value['uid']) {
+              $reviewers_list[] = db_result(db_query("SELECT mail FROM {users} WHERE uid=%d", $value['uid']));
+            }
+          }
+          $reviewers = $reviewers_list?implode(", ", $reviewers_list):NULL;
+        }
+        $form['reviewers'] = array(
+          '#type' => 'textfield',
+          '#title' => t($form['field_reviewers']['#title']),
+          '#default_value' => $reviewers,
+          '#size' => 60,
+          '#weight' => 21,
+          '#autocomplete_path'  => 'autocomplete/users/reviewers',
+        );
+      }
+      $form['coauthor'] = array(
+        '#type' => 'textfield',
+        '#title' => t($form['field_coauthor']['#title']),
+        '#default_value' => $co_author,
+        '#size' => 60,
+        '#weight' => 20,
+        '#autocomplete_path'  => 'autocomplete/users/coauthor',
+      );
+      $previous_url = ($form['#node']->type == 'curriculum' && arg(1) == 'add') ? url('bridge' . '/mycurriculum') : url('node' . '/' . arg(1));
+      $form['buttons']['cancel']  = array(
+       '#type' => 'markup',
+       '#value' => '<input type="button"  class="form-submit" value="Cancel" name="cancel" onclick=window.location="'. $previous_url .'">',
+       '#weight'=> 30,
+       '#prefix' => '<span class="btn-center">',
+       '#suffix' => '</span>'
+      );
+       //hide show summary in full view
+      $form['body_field']['#prefix']='<div style="display:none;">';
+      $form['body_field']['#suffix']='</div>';
+      $form['body_field']['teaser_include']['#type'] = 'hidden';
+      $form['body_field']['teaser_js']['#type'] = 'hidden';
+      $form['body_field']['body']['#title'] = NULL;
+      //hide input format
+      $form['body_field']['format']['#prefix'] = "<div style=display:none> ";
+      $form['body_field']['format']['#suffix'] = "</div>";
+      $form['options']['status']['#default_value'] = $form['field_published']['#default_value'][0]['value'];
+      break;
+  }
+  
+  
+}
+
+/**
+ * Check and change the publish and comment settings for node according to the cck fields settings
+ *
+ */ 
+function curriculum_form_validate($form, &$form_state) {
+  //Change node publish value according to cck field published
+  if ($form_state['values']['field_published'][0]['value'] == 1) {
+    $form_state['values']['status'] = 1;
+  }
+  else {
+    $form_state['values']['status'] = 0;
+  }
+}
+
+/**
+ *  Implementing hook_nodeapi().
+ */
+function curriculum_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
+  global $user;
+  switch ($op) {
+    case 'load':
+      if($node->type == 'curriculum') {
+        $playlist = array();
+        $check_query = db_query('SELECT OGA.topic_id,OGA.topic_title,OGA.weight,OGA.created FROM {curriculum_topics} OGA WHERE OGA.cid = %d order by OGA.weight asc', $node->nid);
+        $topic_count = db_affected_rows($check_query);
+        $playlist['topic_count'] = $topic_count;
+         if(db_affected_rows()) {
+          $i = 1;
+          while ($object = db_fetch_object($check_query)) {
+            $playlist['topic'][$i]['topic_id'] = $object->topic_id;
+            $playlist['topic'][$i]['weight'] = $object->weight;
+            $playlist['topic'][$i]['topic_title'] = check_plain($object->topic_title);
+            $playlist['topic'][$i]['topic_created'] = $object->created;
+
+            $playlist['topic'][$i]['topic_unavailable'] ="Drop the assets here from Bridge baskets to " . check_plain($object->topic_title);
+
+           $query = db_query('SELECT TA.asset,TA.id,TA.title,TA.description, TA.type, TA.id, TA.created, TA.weight FROM {curriculum_topics_assets} TA  WHERE TA.topic_id = %d order by weight asc', $object->topic_id);
+          $subtopic_count = db_affected_rows($query);
+          $playlist['topic'][$i]['subtopic_count'] = $subtopic_count;
+            if (db_affected_rows()) {
+              $j = 1;
+              while ($subtopic = db_fetch_object($query)) {
+                //Check whether the Subtopic is a node.
+                if(is_numeric($subtopic->asset)){
+                  $subtopic_node = node_load($subtopic->asset);
+                  $playlist['topic'][$i]['subtopic'][$j]['subtopic_asset'] = $subtopic->asset;
+                  $playlist['topic'][$i]['subtopic'][$j]['subtopic_id'] = $subtopic->id;
+                  $playlist['topic'][$i]['subtopic'][$j]['subtopic_title'] = $subtopic_node->title;
+                  $playlist['topic'][$i]['subtopic'][$j]['subtopic_description'] = function_exists("removing_whitespace") ? removing_whitespace($subtopic_node->body) : NULL;
+                  $playlist['topic'][$i]['subtopic'][$j]['subtopic_type'] = $subtopic_node->type;
+                  $playlist['topic'][$i]['subtopic'][$j]['subtopic_created'] = $subtopic_node->created;
+                  $playlist['topic'][$i]['subtopic'][$j]['subtopic_weight'] = $subtopic->weight;
+                }
+                else {//Otherwise we considered as External(Federated) Link
+                  $playlist['topic'][$i]['subtopic'][$j]['subtopic_asset'] = $subtopic->asset;
+                  $playlist['topic'][$i]['subtopic'][$j]['subtopic_id'] = $subtopic->id;
+                  $playlist['topic'][$i]['subtopic'][$j]['subtopic_title'] = $subtopic->title;
+                  $playlist['topic'][$i]['subtopic'][$j]['subtopic_description'] = $subtopic->description;
+                  $playlist['topic'][$i]['subtopic'][$j]['subtopic_type'] = $subtopic->type;
+                  $playlist['topic'][$i]['subtopic'][$j]['subtopic_created'] = $subtopic->created;
+                  $playlist['topic'][$i]['subtopic'][$j]['subtopic_weight'] = $subtopic->weight;
+                }
+                //author only have rights to see assigned member
+                if ($user->uid == $node->uid) {
+                // check if the subtopic is assigned
+                  if (db_result(db_query('SELECT COUNT(*) as  assign_count FROM {assignment} WHERE from_uid = %d AND st_id = %d', $user->uid, $subtopic->id))) {
+                    $playlist['topic'][$i]['subtopic'][$j]['assigned_status'] = TRUE;
+                    $playlist['topic'][$i]['subtopic'][$j]['assigned_link'] = 'assignment/list/'.arg(1).'/'.$subtopic->id;
+                  }
+                  else {
+                    $playlist['topic'][$i]['subtopic'][$j]['assigned_status'] = FALSE;
+                    $playlist['topic'][$i]['subtopic'][$j]['assigned_link'] = "";
+                  }
+                }
+                $j++;
+              }
+            }
+            $i++;
+          }
+        }
+        $node->playlist = $playlist;
+    }
+    break;
+    case 'insert':
+      if ($node->type == 'curriculum') {
+        $flag = 0;
+        //Check whether node published option is checked. For Reviewer mail.
+        if ($node->field_published[0]['value'] == 1) {
+          // When Add the Reviewer, they got mail on Playlist creation.
+          if (!$flag) {
+            if ($node->field_reviewers) {
+              $reviewer_presave = array();
+              foreach ($node->field_reviewers as $key => $value) {
+                if ($value['uid']) {
+                  $reviewer_presave[$value['uid']] = $value['uid'];
+                }
+              }
+
+              $review_receipients = function_exists("co_authorcheck") ? co_authorcheck($reviewer_presave) : NULL;
+              $assign_msg = function_exists("privatemsg_assign_message") ? privatemsg_assign_message('added', 'reviewer', 'reviews', check_plain($node->title), $node->uid, $node->nid) : NULL;
+              if(is_array($review_receipients) && (count($review_receipients) > 0) && function_exists("privatemsg_mail_send")){
+                privatemsg_mail_send($review_receipients, $user, $assign_msg['subject'], $assign_msg['body']);
+              }
+            }
+          }
+        }
+        // When Add the Co-Author, they got mail on Playlist creation. No need to check the Published status for Co-Author mail.
+        if ($node->field_coauthor) {
+          $co_author_presave = array();
+          foreach ($node->field_coauthor as $key => $value) {
+            if ($value['uid']) {
+              $co_author_presave[$value['uid']] = $value['uid'];
+            }
+          }
+          $co_author_receipients = function_exists("co_authorcheck") ? co_authorcheck($co_author_presave) : NULL;
+          $assign_msg = function_exists("privatemsg_assign_message") ?  privatemsg_assign_message('added', 'co-author', 'overview', check_plain($node->title), $node->uid, $node->nid) : NULL;
+          //Check whether atleast one user has added as Co-author.
+          if(is_array($co_author_receipients) && (count($co_author_receipients) > 0) && ($node->field_coauthor[0]['uid']) && function_exists("privatemsg_mail_send")){
+            privatemsg_mail_send($co_author_receipients, $user, $assign_msg['subject'], $assign_msg['body']);
+          }
+        }
+        //when we create Playlist by default one topic got created in that playlist
+        $default_title = 'Topic 1';
+        db_query("INSERT INTO {curriculum_topics} SET cid = %d, topic_title = '%s', created = %d, changed = %d, weight = %d", $node->nid, $default_title, time(), time(), 1);
+      }
+    break;
+    case 'validate':
+      switch($node->type) {
+        case 'curriculum':
+          if (function_exists("validation_check")) {
+            validation_check($node);
+          }
+          $flag = 0;
+          if ($node->field_published[0]['value'] == 1) {
+            //if ($node->field_openforreview[0]['value'] == 1) {
+            if ($node->field_reviewers[0]['uid'] == '') {
+              $flag = 1;
+            }
+            // When Add the Reviewer or Remove the reviewer the mail will send
+            if (!$flag && arg(1) != 'add') {
+              if ($node->field_reviewers) {
+                $reviewer_presave = array();
+                foreach ($node->field_reviewers as $key => $value) {
+                  if ($value['uid']) {
+                    $reviewer_presave[$value['uid']] = $value['uid'];
+                  }
+                }
+              }
+              $query = db_query("select RE.field_reviewers_uid from {content_field_reviewers} RE LEFT JOIN {node} N on N.vid = RE.vid where N.nid=%d", arg(1));
+              if (db_affected_rows()) {
+                $reviewer = array();
+                while ($array = db_fetch_object($query)) {
+                  if ($array->field_reviewers_uid) {
+                    $reviewer[$array->field_reviewers_uid] = $array->field_reviewers_uid;
+                  }
+                }
+                $arry_diff_add_reviewer = array_diff($reviewer_presave, $reviewer);
+                $arry_diff_remove_reviewer = array_diff($reviewer, $reviewer_presave);
+                if ($arry_diff_add_reviewer) {
+                  $review_receipients = function_exists("co_authorcheck") ? co_authorcheck($arry_diff_add_reviewer) : NULL;
+                  $assign_msg = function_exists("privatemsg_assign_message") ? privatemsg_assign_message('added', 'reviewer', 'reviews', check_plain($node->title), $node->uid, $node->nid) : NULL;
+                }
+                elseif ($arry_diff_remove_reviewer) {
+                  $review_receipients = function_exists("co_authorcheck") ? co_authorcheck($arry_diff_remove_reviewer) : NULL;
+                  $assign_msg = function_exists("privatemsg_assign_message") ? privatemsg_assign_message('removed', 'reviewer', 'reviews', check_plain($node->title), $node->uid, $node->nid, 'from') : NULL;
+                }
+              }
+              else {
+                // New Reviewer Added Only
+                $review_receipients = function_exists("co_authorcheck") ? co_authorcheck($reviewer_presave) : NULL;
+                $assign_msg = function_exists("privatemsg_assign_message") ? privatemsg_assign_message('added', 'reviewer', 'reviews', check_plain($node->title),  $node->uid, $node->nid) : NULL;
+              }
+              // Check add and remover reviewer (or) Add reviewer only
+              if ($arry_diff_add_reviewer && $arry_diff_remove_reviewer) {
+                // Add New Reviewer
+                if(is_array($review_receipients) && (count($review_receipients) > 0) && function_exists("privatemsg_mail_send")){
+                  privatemsg_mail_send($review_receipients, $user, $assign_msg['subject'], $assign_msg['body']);
+                }
+                // Remove Reviewer
+                $remove_review = function_exists("co_authorcheck") ? co_authorcheck($arry_diff_remove_reviewer) : NULL;
+                $assign_msg = function_exists("privatemsg_assign_message") ? privatemsg_assign_message('removed', 'reviewer', 'reviews', check_plain($node->title), $node->uid, $node->nid, 'from') : NULL;
+                if(is_array($remove_review) && (count($remove_review) > 0) && function_exists("privatemsg_mail_send")){
+                  privatemsg_mail_send($remove_review, $user, $assign_msg['subject'], $assign_msg['body']);
+                }
+              }
+              elseif (is_array($review_receipients) && (count($review_receipients) > 0) && function_exists("privatemsg_mail_send")) {
+                //Add New Reviwer Only
+                privatemsg_mail_send($review_receipients, $user, $assign_msg['subject'], $assign_msg['body']);
+              }
+            }
+          }
+          // To Send Message(by mail) to Co author if he added
+          if (!$flag && arg(1) != 'add') {
+            if ($node->field_coauthor) {
+              $co_author_presave = array();
+              foreach ($node->field_coauthor as $key => $value) {
+                if ($value['uid']) {
+                  $co_author_presave[$value['uid']] = $value['uid'];
+                }
+              }
+            }
+            $query = db_query("select CO.field_coauthor_uid from {content_field_coauthor}  CO LEFT JOIN {node} N on N.vid = CO.vid where N.nid=%d", arg(1));
+            if (db_affected_rows()) {
+              $co_author = array();
+              while ($array = db_fetch_object($query)) {
+                if ($array->field_coauthor_uid) {
+                  $co_author[$array->field_coauthor_uid] = $array->field_coauthor_uid;
+                }
+              }
+              $arry_diff_add = array_diff($co_author_presave, $co_author);
+              $arry_diff_remove = array_diff($co_author, $co_author_presave);
+
+              if ($arry_diff_add ) {
+                $arry_receipients = function_exists("co_authorcheck") ? co_authorcheck($arry_diff_add) : NULL;
+                $assign_msg = function_exists("privatemsg_assign_message") ? privatemsg_assign_message('added', 'co-author', 'overview', check_plain($node->title), $node->uid, $node->nid) : NULL;
+              }
+              elseif ($arry_diff_remove) {
+                $arry_receipients = function_exists("co_authorcheck") ? co_authorcheck($arry_diff_remove) : NULL;
+                $assign_msg = function_exists("privatemsg_assign_message") ? privatemsg_assign_message('removed', 'co-author', 'overview', check_plain($node->title), $node->uid, $node->nid, 'from') : NULL;
+              }
+            }
+            else {
+              $arry_receipients = function_exists("co_authorcheck") ? co_authorcheck($co_author_presave) : NULL;
+              $assign_msg = function_exists("privatemsg_assign_message") ? privatemsg_assign_message('added', 'co-author', 'overview', check_plain($node->title), $node->uid, $node->nid) : NULL;
+            }
+
+            if ($arry_diff_add && $arry_diff_remove) {
+              if(is_array($arry_receipients) && (count($arry_receipients) > 0) && function_exists("privatemsg_mail_send")){
+                privatemsg_mail_send($arry_receipients, $user, $assign_msg['subject'], $assign_msg['body']);
+              }
+              $arry_remove_receipients = function_exists("co_authorcheck") ? co_authorcheck($arry_diff_remove) : NULL;
+              $assign_msg = function_exists("privatemsg_assign_message") ?  privatemsg_assign_message('removed', 'co-author', 'overview', check_plain($node->title), $node->uid, $node->nid, 'from') : NULL;
+              if(is_array($arry_remove_receipients) && (count($arry_remove_receipients) > 0) && function_exists("privatemsg_mail_send")){
+                privatemsg_mail_send($arry_remove_receipients, $user, $assign_msg['subject'], $assign_msg['body']);
+              }
+            }
+            elseif (is_array($arry_receipients) && (count($arry_receipients) > 0) && function_exists("privatemsg_mail_send")) {
+              privatemsg_mail_send($arry_receipients, $user, $assign_msg['subject'], $assign_msg['body']);
+            }
+          }
+        break;
+      }
+    break;
+    case 'update':
+      if ($node->type == 'curriculum') {
+        $flag = 0;
+        //Check whether node published option is checked. For Reviewer mail.
+        if ($node->field_published[0]['value'] == 1) {
+          // When Add the Reviewer, they got mail on Playlist creation.
+          if (!$flag) {
+            if ($node->field_reviewers) {
+              $reviewer_presave = array();
+              foreach ($node->field_reviewers as $key => $value) {
+                if ($value['uid']) {
+                  $reviewer_presave[$value['uid']] = $value['uid'];
+                }
+              }
+              $review_receipients = function_exists("co_authorcheck") ? co_authorcheck($reviewer_presave) : NULL;
+              $assign_msg = function_exists("privatemsg_assign_message") ?  privatemsg_assign_message('added', 'reviewer', 'reviews', check_plain($node->title), $node->uid, $node->nid) : NULL;
+              if (is_array($review_receipients) && (count($review_receipients) > 0) && function_exists("privatemsg_mail_send")) {
+                privatemsg_mail_send($review_receipients, $user, $assign_msg['subject'], $assign_msg['body']);
+              }
+            }
+          }
+        }
+        // When Add the Co-Author, they got mail on Playlist creation. No need to check the Published status for Co-Author mail.
+        if ($node->field_coauthor) {
+          $co_author_presave = array();
+          foreach ($node->field_coauthor as $key => $value) {
+            if ($value['uid']) {
+              $co_author_presave[$value['uid']] = $value['uid'];
+            }
+          }
+          $co_author_receipients = function_exists("co_authorcheck") ? co_authorcheck($co_author_presave) : NULL;
+          $assign_msg = function_exists("privatemsg_assign_message") ? privatemsg_assign_message('added', 'co-author', 'overview', check_plain($node->title), $node->uid, $node->nid) : NULL;
+          //Check whether atleast one user has added as Co-author.
+          if (($node->field_coauthor[0]['uid']) && is_array($co_author_receipients) && (count($co_author_receipients) > 0) && function_exists("privatemsg_mail_send")) {
+            privatemsg_mail_send($co_author_receipients, $user, $assign_msg['subject'], $assign_msg['body']);
+          }
+        }
+      }
+    break;
+  case 'delete':
+      switch($node->type) {
+        case 'curriculum':
+          notification_curriculum_delete($node);
+        break;
+      }
+    break;
+   case 'presave':
+    switch($node->type) {
+      case 'curriculum':
+        // Assign coauthor field to node->field_coauthor
+        if (isset($node->coauthor)) {
+          if ($node->coauthor) {
+            $i = 0;
+            $co_author_list = explode(",", $node->coauthor);
+            //Check whether the last element is empty, if yes remove that empty element
+            if (trim($co_author_list[count($co_author_list)-1]) == '') {
+              array_pop($co_author_list);
+            }
+            if ($co_author_list) {
+              //Unset the existing Co Author values, then only our assign will work
+              unset($node->field_coauthor);
+              foreach($co_author_list as $key => $value) {
+                $username = NULL;
+                $username = db_result(db_query("SELECT uid FROM {users} where mail='%s'", trim($value)));
+                if (db_affected_rows() && $username != 0) {
+                  $node->field_coauthor[$i]['uid'] = $username;
+                  $node->field_reviewers[$i]['_weight'] = $i;
+                  $i++;
+                }
+              }
+            }
+          }
+          else {
+            // if coauthor field is empty
+            $i = 0;
+            if ($node->field_coauthor) {
+              foreach($node->field_coauthor as $value) {
+                $node->field_coauthor[$i]['uid'] = NULL;
+                $i++;
+              }
+            }
+          }
+        }
+        // Assign reviewers field to node->field_reviewers
+        if (isset($node->reviewers)) {
+          if ($node->reviewers) {
+            $i = 0;
+            $co_reviewers_list = explode(",", $node->reviewers);
+            //Check whether the last element is empty, if yes remove that empty element
+            if (trim($co_reviewers_list[count($co_reviewers_list)-1]) == '') {
+              array_pop($co_reviewers_list);
+            }
+            if ($co_reviewers_list) {
+              //Unset the existing Reviewer values, then only our assign will work
+              unset($node->field_reviewers);
+              foreach($co_reviewers_list as $key => $value) {
+                $username = NULL;
+                $username = db_result(db_query("SELECT uid FROM {users} where mail='%s'", trim($value)));
+                if (db_affected_rows() && $username != 0) {
+                  $node->field_reviewers[$i]['uid'] = $username;
+                  $node->field_reviewers[$i]['_weight'] = $i;
+                  $i++;
+                }
+              }
+            }
+          }
+          else {
+            $i= 0;
+            if ($node->field_reviewers) {
+              foreach($node->field_reviewers as $value) {
+                $node->field_reviewers[$i]['uid'] = NULL;
+                $i++;
+              }
+            }
+          }
+        }
+        // Set the default status based on published field
+        if ($node->field_published[0]['value'] == 1) {
+          $node->status = 1;
+          // for mobile clear cache
+          if(module_exists("cache_eb")) {
+            cache_clear_all("playlist_report_list:uid:" . $node->uid . ":", "cache_eb", TRUE);
+          }
+        }
+        else {
+          $node->status = 0;
+        }
+        break;
+    }
+
+  }
+}
+
+
+/**
+ *
+ * Notification Email will Send to Bookmarked user, Recommended user, Co-author, Author, Associated Asset Authors
+ *
+ * @param $node
+ *  it contains node object
+ *
+ * @see privatemsg_mail_send in eb_others_common.inc
+ */
+function notification_curriculum_delete($node) {
+  global $user;
+  // Check for Co-Author and Send Notification Mail
+  if ($node->field_coauthor) {
+    $coauthor = array();
+    foreach($node->field_coauthor as $value) {
+      // Mail will not send to Deleted user
+      if ($value['uid'] != $user->uid && $value['uid']) {
+        $user_name =   db_result(db_query("SELECT name FROM {users} WHERE uid=%d",  $value['uid']));
+        $temp_user_list = user_load(array('name' => trim($user_name)));
+        $coauthor[$temp_user_list->uid] = $temp_user_list;
+      }
+    }
+    if (is_array($coauthor) && (count($coauthor) > 0) && function_exists("privatemsg_mail_send")) {
+      $subject = 'Your playlist has been removed';
+      $body = 'Your playlist ' . check_plain($node->title) . ' has been removed';
+      privatemsg_mail_send($coauthor, $user, $subject, $body);
+    }
+  }
+  // Check for Authors and Send Notification Mail
+  // Mail will not send to Deleted user
+  if ($node->field_author[0]['uid'] != $user->uid && $node->field_author[0]['uid']) {
+    $user_name =   db_result(db_query("SELECT name FROM {users} WHERE uid=%d",  $node->field_author[0]['uid']));
+    $temp_user_list = user_load(array('name' => trim($user_name)));
+    $author_list[$temp_user_list->uid] = $temp_user_list;
+    $subject = 'Your playlist has been removed';
+    $body = 'Your playlist ' . check_plain($node->title) . ' has been removed';
+    if (is_array($author_list) && (count($author_list) > 0) && function_exists("privatemsg_mail_send")) {
+      privatemsg_mail_send($author_list, $user, $subject, $body);
+    }
+  }
+  // Check for Associated Asset in Curriculum Topics
+  $query = db_query("SELECT T.cid FROM {curriculum_topics_assets} TA INNER JOIN {curriculum_topics} T ON  T.topic_id = TA.topic_id WHERE TA.asset=%d", $node->nid);
+  if (db_affected_rows()) {
+    while ($curri_asso = db_fetch_object($query)) {
+      $node_associated = node_load($curri_asso->cid);
+       // Apache Solr Index Purpose
+      if (function_exists('_apachesolr_nodeapi_update')) {
+        _apachesolr_nodeapi_update($node_associated);
+      }
+      // Check for Associated Co-Author and Send Notification Mail
+      if ($node_associated->field_coauthor) {
+        $coauthor = array();
+        foreach($node_associated->field_coauthor as $value) {
+          // Mail will not send to Deleted user
+          if ($value['uid'] != $user->uid && $value['uid']) {
+            $user_name =   db_result(db_query("SELECT name FROM {users} WHERE uid=%d",  $value['uid']));
+            $temp_user_list = user_load(array('name' => trim($user_name)));
+            $coauthor[$temp_user_list->uid] = $temp_user_list;
+          }
+        }
+        if (is_array($coauthor) && (count($coauthor) > 0) && function_exists("privatemsg_mail_send")) {
+          $subject = 'Your associated playlist has been removed';
+          $body = 'Your associated playlist ' . check_plain($node->title) . ' has been removed';
+          privatemsg_mail_send($coauthor, $user, $subject, $body);
+        }
+      }
+      // Check for Associated Authors and Send Notification Mail
+      // Mail will not send to Deleted user
+      if ($node_associated->field_author[0]['uid'] != $user->uid && $node_associated->field_author[0]['uid']) {
+        $author_list = array();
+        $user_name =   db_result(db_query("SELECT name FROM {users} WHERE uid=%d", $node_associated->field_author[0]['uid']));
+        $temp_user_list = user_load(array('name' => trim($user_name)));
+        $author_list[$temp_user_list->uid] = $temp_user_list;
+
+        $subject = 'Your playlist has been removed';
+        $body = 'Your playlist ' . check_plain($node->title) . ' has been removed';
+        if (is_array($author_list) && (count($author_list) > 0) && function_exists("privatemsg_mail_send")) {
+          privatemsg_mail_send($author_list, $user, $subject, $body);
+        }
+      }
+    }
+  }
+  // Notification Mail will send to Bookmarked Users
+  $bookmark_query = db_query("SELECT uid FROM {bookmark} WHERE asset=%d", $node->nid);
+  if (db_affected_rows()) {
+    $arry_receipients = array();
+    while ($bookmark_result = db_fetch_object($bookmark_query)) {
+      $user_name =   db_result(db_query("SELECT name FROM {users} WHERE uid=%d", $bookmark_result->uid));
+      $temp_user_list = user_load(array('name' => trim($user_name)));
+      $arry_receipients[$temp_user_list->uid] = $temp_user_list;
+    }
+    $subject = 'Bookmarked playlist has been removed';
+    $body = 'Your bookmarked ' . check_plain($node->title) . ' playlist has been removed';
+    if (is_array($arry_receipients) && (count($arry_receipients) > 0) && function_exists("privatemsg_mail_send")) {
+      privatemsg_mail_send($arry_receipients, $user, $subject, $body);
+    }
+  }
+  // Notification Mail will send to Recommeded users
+  $recommend_query = db_query("SELECT to_uid FROM {recommend} WHERE asset=%d", $node->nid);
+  if (db_affected_rows()) {
+    $arry_receipients = array();
+    while ($recommend_result = db_fetch_object($recommend_query)) {
+      $user_name =   db_result(db_query("SELECT name FROM {users} WHERE uid=%d", $recommend_result->to_uid));
+      $temp_user_list = user_load(array('name' => trim($user_name)));
+      $arry_receipients[$temp_user_list->uid] = $temp_user_list;
+    }
+    $subject = 'Recommended playlist has been removed';
+    $body = 'Your Recommended ' . check_plain($node->title) . ' playlist has been removed';
+    if (is_array($arry_receipients) && (count($arry_receipients) > 0) && function_exists("privatemsg_mail_send")) {
+      privatemsg_mail_send($arry_receipients, $user, $subject, $body);
+    }
+  }
+  //delete assignment related content while deleting playlist
+  $query = db_query("SELECT curriculum_topics_assets.id  FROM {curriculum_topics} LEFT JOIN {curriculum_topics_assets} ON curriculum_topics.topic_id = curriculum_topics_assets.topic_id
+WHERE curriculum_topics.cid = %d", $node->nid);
+  if (db_affected_rows()) {
+    while($row = db_fetch_object($query)) {
+      db_query("DELETE FROM {assignment} WHERE st_id=%d", $row->id);
+      db_query("DELETE FROM {assignment_assign} WHERE st_id=%d", $row->id);
+      db_query("DELETE FROM {assignment_statistics} WHERE st_id=%d", $row->id);
+    }
+  }
+  db_query("DELETE curriculum_topics, curriculum_topics_assets  FROM {curriculum_topics}
+           LEFT JOIN {curriculum_topics_assets} ON curriculum_topics.topic_id = curriculum_topics_assets.topic_id
+           WHERE curriculum_topics.cid = %d", $node->nid);
+  //delete the corresponding bookmarks and recommendations and Associated Curriculum Topics
+  db_query("DELETE FROM {bookmark} WHERE type = 'curriculum' AND asset = %d", $node->nid);
+  db_query("DELETE FROM {recommend} WHERE type = 'curriculum' AND asset = %d", $node->nid);
+}
+
+/*
+ * return share button link
+ *
+ * @return
+ *  It returns share button script
+ *
+ */
+function sharelink() {
+  return '<div class="addthis_toolbox addthis_default_style ">
+  <a class="addthis_button_compact">
+  </a>
+  </div>
+  <script type="text/javascript">var addthis_config = { services_compact: "email, facebook",  services_exclude: "google"
+  };</script>
+  <script type="text/javascript" src="http://s7.addthis.com/js/250/addthis_widget.js#pubid=ra-4dde65226a877bc4"></script>';
+}
+
+/**
+ * Implementation of hook_preprocess_page().
+ *
+ */
+function curriculum_preprocess_page(&$vars) {
+  global $user;
+  if(function_exists("jquery_ui_add")) {
+    jquery_ui_add(array('ui.widget', 'ui.mouse', 'ui.draggable', 'ui.droppable', 'ui.sortable'));
+  }
+  drupal_add_js(drupal_get_path('module', 'curriculum') . '/js/baskets.js');
+  drupal_add_js(drupal_get_path('module', 'curriculum') . "/js/curriculum-pager.js");
+  drupal_add_js(array(
+            'curriculum' => array(
+            'curriculum_id' => arg(1),
+            )
+          ), 'setting'
+        );
+  // node object
+  if (is_numeric(arg(1)) && (arg(0) == 'node' || arg(0) == "review_listing" )) {
+    $node = node_load(arg(1));
+  }
+  // For comment edit page
+  if (arg(0) == 'comment' && arg(1) == 'edit') {
+    $nid = db_result(db_query("SELECT nid FROM comments WHERE cid=%d", arg(2)));
+    $node = node_load($nid);
+  }
+
+  if (!$node->field_published[0]['value']) {
+    if (function_exists("view_asset_curriculum_access") && view_asset_curriculum_access($node, FALSE, FALSE, FALSE, TRUE) && arg(2) == NULL && $node->type == "curriculum") {
+      $count = db_result(db_query("SELECT count(*)  FROM {curriculum_topics} OGA INNER JOIN {curriculum_topics_assets} TA  ON
+  OGA.topic_id = TA.topic_id WHERE cid = %d", $node->nid));
+      if ($count > 0) {
+        $vars['create_link'] =  l('Publish Playlist', '#', array('attributes' => array('class' => 'float-right unpublish-link', 'style' => 'display:none', 'title' => 'Add Subtopics to Publish Playlist'), 'external' => TRUE)) . l('Publish Playlist', "node/" . $node->nid . "/publish", array('attributes' => array('class' => 'create-button float-right publish-link popups-form-reload', 'on-popups-options' => '{hijackDestination:"FALSE"}', 'title' => 'Publish Playlist')));
+      } else {
+        $vars['create_link'] =  l('Publish Playlist', '#', array('attributes' => array('class' => 'float-right unpublish-link', 'title' => 'Add Subtopics to Publish Playlist'), 'external' => TRUE)) . l('Publish Playlist', "node/" . $node->nid . "/publish", array('attributes' => array('class' => 'create-button float-right publish-link popups-form-reload', 'on-popups-options' => '{hijackDestination:"FALSE"}', 'style' => 'display:none', 'title' => 'Publish Playlist')));
+      }
+    }
+  } else if($node->type == "curriculum" && is_null(arg(2)) && arg(0) == "node"){
+    $vars['create_link'] = l('Clone Playlist', "clone/" . $node->nid, array('attributes' => array('class' => 'create-button float-right publish-link', 'title' => 'Clone Playlist')));
+  }
+
+  // to define coauthor status, provide edit link for both coauthor and author
+  $flag = 0;
+  if (!empty($node->field_coauthor) && $node->type == 'curriculum') {
+    // Check for coauthor
+    $flag = function_exists("check_coauthor") ? check_coauthor($node->field_coauthor) : NULL;
+  }
+
+  // Get all content type
+  $types = node_get_types();
+  // Curriculum Header Section
+  // for curriculum view page only
+  if ($node->type == 'curriculum' && is_null(arg(2))  && arg(1) != 'add' && arg(0) != 'review_listing') {
+    // For  title div structure has been changed...
+    $vars['title_tags'] = TRUE;
+
+    // Include js files
+    // Added to check with node content type. By Fero on July 21.
+    $recommend_option  = variable_get('recommend_' . $node->type, 0);
+    $bookmark_option  = variable_get('bookmark_' . $node->type, 0);
+    // Added to check with node content type Ends here. By Fero on July 21.
+    $vars['scripts']  = drupal_get_js();
+    $bm_link = function_exists("bookmark_this_link") ? bookmark_this_link($node->nid, "curriculum", $node->title, $node->body) : NULL;
+    // For Share link
+    $share_link = function_exists("sharelink") ? sharelink() : NULL;
+    // For bookmark Text
+    $bm_text = (strpos($bm_link, 'grey-star.png'))?'Bookmark':'Bookmarked';
+    // for recommend lInk
+    $rec_link = l(theme_image(drupal_get_path('theme', 'edubridge_fluid') . "/images/recommend.png", 'Recommend this', 'Recommend this'), "recommend/" . $node->nid, array('attributes' => array('title' => 'Recommend this'), 'html' => TRUE));
+    // For pdf link
+    $pdf_link = l(theme_image(drupal_get_path('theme', 'edubridge_fluid') . "/images/pdf_view.jpg", 'Download this', 'Download this'), 'curriculum/' . arg(1) . '/overview/pdf', array('attributes' => array('target' => '_blank', 'title' => 'Download this'), 'html' => TRUE, 'query' => 'mode=view'));
+    // Bookmark, recommend, pdf, share link border
+
+    if(playlist_clone_access($node)) {
+      $clone_playlist = '<div class="reviews-title-right reviews-title-playlist"><span class="btn-center">' .  $vars['clone_playlist'] = l('Clone Playlist', 'clone/'.$node->nid, array('attributes' => array('class' => '', 'title' => 'Click to clone playlist'))) . '</span></div>';
+    }
+
+    $vars['header_links'] .= !empty($clone_playlist)?$clone_playlist:NULL . '<div class="list-items"><ul class="clearfix">';
+      // If condition added to check wheather to display or not. By Fero on July 21.
+      if($bookmark_option == '1') {
+        $vars['header_links'] .= "<li>$bm_link</li>";
+        $vars['header_links'] .= "<li class='bookmark-left'><span class='ajax-bookmark-text'>" . $bm_text . "</span></li>";
+      }
+    // If condition added to check wheather to display or not. By Fero on July 21.
+    if($recommend_option == '1') {
+      $vars['header_links'] .= "<li>$rec_link <span>Recommend</span></li>";
+    }
+    $vars['header_links'] .= '<li>'.$pdf_link.' <span id="download-pdf">Download<div id="asset-download-list" style="" class="list_pdf_word"><div class="close-arrow"></div>
+  <h3>Download</h3><div class="list-items"><ul class="clearfix"><li class="pdf-icon"><a href=' . $base_url . '/asset/' . arg(1) . '/overview/pdf?mode=view target="_blank">PDF</a></li></ul></div></div></span></li>';
+    $vars['header_links'] .= "<li>$share_link <span>Share</span></li>";
+
+    $vars['header_links'] .= '</ul></div>';
+  }
+  // if review view page, edit, listing page The associated node title and tags will get listed.
+  // We need to change node for the associated node..
+  if ($node->type == 'reviews') {
+    $node = node_load($node->field_review_reference[0]['nid']);
+    $vars['title'] = check_plain($node->title);
+  }
+  //edit end delete links for the owner
+  // Author, co author, node author have rights to edit the curriculum
+  $edit_curriculum = NULL;
+  if ((node_access('update',$node) || $flag == 1 || $node->field_author[0]['uid'] == $user->uid) && $node->type == 'curriculum') {
+    // for edit and content link only edit image will not get displayed
+    if (arg(2) != 'edit' && arg(2) != 'content') {
+      $edit_curriculum =  '<div class="edit-link-asset">' . l(theme_image(drupal_get_path('theme', 'edubridge_fluid') . "/images/Edit-icon.png", NULL, 'Edit Playlist'), "node/" . arg(1) . "/content", array('attributes'=> array('title' => 'Edit Playlist'),'html' => true)) .'</div>';
+    }
+  }
+  // For edit content page title should be changed to content for that purpose we need to change the title
+  if (arg(2) == 'content' && $node->type == 'curriculum') {
+    $vars['title'] = check_plain($node->title);
+  }
+  // curriculum page other that Create curriculum
+  if ($node->type == 'curriculum' && arg(1) != 'add') {
+     // For  title div structure has been changed...
+    $vars['title_tags'] = TRUE;
+    // For curriculum published, node author, administrator
+    if ($node->field_published[0]['value'] == 1 || node_access('update',$node)  || user_access('administrator')) {
+      $vars['title_class'] =  "curriculum-title";
+      $vars['title_edit'] = $edit_curriculum;
+      $vars['title_subtitle'] = '<div class="clearfix"><div class="author-name">Teacher: <span>' . function_exists("create_eduauthor") ? create_eduauthor($node->uid) : NULL. '</span>';
+      //check the average voting - if zero then dont display the stars
+      if (module_exists('fivestar')) {
+        $avg_vote = fivestar_get_votes('node', $node->nid);
+      }
+      if ($avg_vote['average']['value'] > 0 &&  $node->field_published[0]['value'] == 1 ) {
+        $vars['title_subtitle'] .= ' | </div>';
+        if (module_exists('fivestar')) {
+          $vars['title_subtitle'] .= '<div class="star-rating">' . theme('fivestar_static', $avg_vote['average']['value']) . '</div>';
+        }
+      }
+      else {
+        $vars['title_subtitle'] .= '</div>';
+      }
+
+      $vars['title_subtitle'] .= '</div>';
+      if($node->taxonomy) :
+      foreach($node->taxonomy as $key => $value) {
+        if($value->vid == '4') {
+          $tags[] = l($value->name, 'ebsearch/results/'.$value->name, array('query' => 'filters=type:curriculum&solrsort=ps_score_content desc'));
+        }
+      }
+      $tags = ($tags)? implode(", " , $tags):NULL;
+      endif;
+      ($tags == '') ? $tags = '-' : $tags = $tags;
+      $vars['title_subtitle'] .= '<div class="clearfix"><div class="author-name">Tags: <span>' . $tags . '</span></div>';
+    }
+  }
+}
+
+/**
+ * Implementation of hook_preprocess_node().
+ *
+ *
+ */
+function curriculum_preprocess_node(&$vars) {
+  // Curriculum starts here
+  global $user, $base_url;
+  // Fore curriculum view page
+  if ($vars['node']->type == 'curriculum') {
+    // To Check If coauthor, rating are not able to view
+    $flag_coauthor = function_exists("check_coauthor") ? check_coauthor($vars['node']->field_coauthor) : NULL;
+    // to check if subtopic is available
+    $flag_subtopic = 0;
+    $flag_topic = 0;
+    // to display description in view and edit curriculum page. #Fero august 11
+    $vars['description'] = !empty($vars['node']->content['body']['#value'])?    check_markup($vars['node']->content['body']['#value'], $vars['node']->format, false):"";
+    $vars['playlist_description_class'] = NULL;
+    // For node is not publish then only we can edit the access
+    if ($_GET['preview'] != "true" && $vars['node']->field_published[0]['value'] != 1) {
+      $playlist_access = function_exists("view_asset_curriculum_access") ? view_asset_curriculum_access($vars['node']) : NULL;
+      if($playlist_access != "") {
+        $vars['playlist_description_class'] = "topic-inline-edit-desc";
+      }
+    }
+    else {
+      $playlist_access = NULL;
+    }
+    // Only Author has rights to assign assignment & publish state
+    if ($user->uid == $vars['node']->uid && !$playlist_access && $_GET['preview'] != "true") {
+      $vars['select_all'] = drupal_get_form('curriculum_select_all_form', 0);
+      //padma
+      $vars['weight'] = drupal_get_form('curriculum_weight_form', 0);
+      $vars['select_topic'] = drupal_get_form('curriculum_select_topic_form', 0); 
+      $vars['popup_selectall']= theme_image(drupal_get_path('theme', 'educationhub') . "/images/popup-selectall.png", "Select All", "Select All");
+      $vars['assign']= '<a href="javascript:;">'.theme_image(drupal_get_path('theme', 'educationhub') . "/images/assign.jpg", $alt = 'Assign Now', $title = 'Assign Now').'</a>';
+      $vars['assign_disable']= theme_image(drupal_get_path('theme', 'educationhub') . "/images/assign-disable.gif", $alt = 'Select topics to Assign', $title = 'Select topics to Assign');
+      $vars['assign_form_active']= theme_image(drupal_get_path('theme', 'educationhub') . "/images/assign.jpg", $alt = 'Assign later', $title = 'Assign later');
+     $vars['assign_unpublished']= theme_image(drupal_get_path('theme', 'educationhub') . "/images/assign-disable.gif", $alt = 'Publish playlist to assign', $title = 'Publish playlist to assign');
+      if($vars['node']->field_published[0]['value'] == 1) {
+        drupal_add_js(array('published' => TRUE), 'setting');
+        $vars['assignment_heading'] = 'Topics Selected: ';
+        if (user_access("create curriculum content")) {
+          module_load_include('inc', 'assignment', 'includes/assignment_form');
+          if (function_exists("assignment_form")) {
+            $vars['assignment_form'] = drupal_get_form('assignment_form');
+          }
+          
+        }
+      }
+      // Check for assignment access or assigned member
+      // check if that user have an assign permission and that curriculum is published
+      if (function_exists("assignment_access")) {
+        $vars['access'] = assignment_access($vars['node'], 'create curriculum content');
+      }
+    }
+    drupal_add_css(drupal_get_path('module', 'curriculum') . '/css/curriculum.css');
+    //bring preview line in Playlist edit page.
+    $vars['preview_line'] = TRUE;
+
+    // Edit curriculum features for authors & coauthors for un published state
+    if (arg(0) == 'node' && is_numeric(arg(1)) && $playlist_access) {
+      // Both Author & CoAuthor
+      $vars['edit_title'] = 'Click to Edit';
+      $default_value = "<p>Please write the description here.</p> <a href='javascript:;' class='playlist-edit-description'>Edit Description</a>";
+      $dynamic_value = "<p>".$vars['node']->content['body']['#value']."</p> <a href='#' class='playlist-edit-description'>Edit Description</a>";
+      $vars['description'] = !empty($vars['node']->content['body']['#value'])? $dynamic_value:$default_value;
+      drupal_add_js(drupal_get_path('module', 'curriculum') . '/js/curriculum.js');
+      // Add tip
+      $vars['edit_tip'] = '<div class="edit-helptext"><span class="font-bold">Tip:</span> Please write description and click on Topic Title to type your desired title for the topics you add. Additionally the Assets could be drag and dropped as Sub Topics from the Bridge basket .</div><div class="tip-close"> ' . l("X", "#", array("attributes" => array("title" => "Close"), "external" => TRUE)) . '</div><div class="tip-open" style="display:none"><a href="javascript:;"> ' . theme_image(drupal_get_path('theme', 'educationhub') .'/images/idea2.png', 'Click to View Tip', 'Click to View Tip') . '</a></div>';
+
+      //Check whether the Playlist published or not for Assignment functionality.
+      if($vars['node']->field_published[0]['value'] == 1){
+        drupal_add_js(array('published' => TRUE), 'setting');
+      }
+      //Add topic icons
+      $vars['add_topic']= l(theme_image(drupal_get_path('theme', 'educationhub') . "/images/add-topic.jpg", $alt = 'Add Topic Now', $title = 'Add Topic Now'), "curriculum/" . $vars['node']->nid  . "/add_edit_topic", array( 'attributes' => array('class' => 'topic-inline-add', 'title' => 'Add Topic'),  'html' => true));
+      $vars['add_topic_disable']= theme_image(drupal_get_path('theme', 'educationhub') . "/images/add-topic-disable.png", "Add Topic", "Add Topic");
+
+      $vars['list_drop']=  theme_image(drupal_get_path('theme', 'educationhub') . "/images/list-drop.jpg");
+      $vars['select_all'] = drupal_get_form('curriculum_select_all_form', 0);
+      //padma
+      $vars['weight'] = drupal_get_form('curriculum_weight_form', 0);
+      $vars['select_topic'] = drupal_get_form('curriculum_select_topic_form', 0);
+     $vars['popup_selectall']= theme_image(drupal_get_path('theme', 'educationhub') . "/images/popup-selectall.png", "Select All", "Select All");
+
+      //Delete Icons
+      $vars['delete']= l(theme_image(drupal_get_path('theme', 'educationhub') . "/images/delete.jpg", $alt = 'Delete Now', $title = 'Delete Now'), 'curriculum/delete_content_confirm', array('html' => TRUE, 'attributes' => array('class' => 'popups')));
+      $vars['delete_disable']= theme_image(drupal_get_path('theme', 'educationhub') . "/images/delete-disable.gif", $alt = 'Select topics to Delete', $title = 'Select topics to Delete');
+      $vars['delete_form_active']= theme_image(drupal_get_path('theme', 'educationhub') . "/images/delete-disable.gif" ,"Select topics to Delete", "Select topics to Delete");
+
+      //Save Icons
+      $vars['savereorder']= l(theme_image(drupal_get_path('theme', 'educationhub') . "/images/save.png", $alt = 'Reorder Now', $title = 'Reorder Now'), 'curriculum/reorder_curriculum_topics', array('html' => TRUE, 'attributes' => array('class' => 'popups')));
+      $vars['savereorder_disable']= theme_image(drupal_get_path('theme', 'educationhub') . "/images/save_over.png", $alt = 'Select topics to Reorder', $title = 'Select topics to Reorder');
+      $vars['save_reorder_form_active']= theme_image(drupal_get_path('theme', 'educationhub') . "/images/save_over.png" ,"Select topics to Reorder", "Select topics to Reorder");
+    // for edit description edit icon
+      $vars['edit_description_icon'] = true;
+    }
+    else {
+      //fivestar rating widget only for users other than author
+      //@see curriculum_preprocess_page()  for rating dispaly for all users
+      if (module_exists('fivestar')) {
+        if (user_access('rate content') && fivestar_validate_target('node', $vars['node']->nid) && $flag_coauthor == 0 && $vars['node']->field_published[0]['value'] == 1 && $user->uid != $vars['node']->uid) {
+          $check_rate = db_query("select vote_id from {votingapi_vote} where content_id=%d and uid =%d", $vars['node']->nid, $user->uid);
+          // For Fivestar label
+          if (db_affected_rows()) {
+            $vars['fivestar_label'] = 'My Rating:';
+            $avg_vote = fivestar_get_votes('node', $vars['node']->nid);
+            $vars['fivestar_widget'] = theme('fivestar_static', $avg_vote['average']['value']);
+          }
+          else {
+            $vars['fivestar_label'] = 'Rate this:';
+            $vars['fivestar_widget'] = fivestar_widget_form($vars['node']);
+          }
+          $vars['fivestar_label'] = db_affected_rows()?'My Rating:':'Rate this:';
+        }
+      }
+    }
+    // For all users: authors, coauthors & viewers: construction of topics & subtopics is common
+ $topic_count = $vars['playlist']['topic_count'];
+    if($topic_count > 0) {
+      $flag_topic = 1;
+      for($i=1;$i<= $topic_count;$i++) {
+         $select_topic_id[] = $vars['playlist']['topic'][$i]['topic_id'];
+      }
+      if(is_array($select_topic_id)) {
+        
+        $select_topicid =  $select_topic_id; 
+      }
+
+       for($i=1;$i<= $topic_count;$i++) {
+        $vars['fields'][$i]['topic_id'] = $vars['playlist']['topic'][$i]['topic_id'];
+        $vars['fields'][$i]['weight'] = $vars['playlist']['topic'][$i]['weight'];
+        $vars['fields'][$i]['topic_title'] = check_plain(htmlspecialchars_decode($vars['playlist']['topic'][$i]['topic_title']));
+        $vars['fields'][$i]['topic_unavailable'] = "Drop the assets here from Bridge baskets to " . check_plain($vars['playlist']['topic'][$i]['topic_title']);
+        // For author and co author have rights to edit and delete topics
+        // For Delete topic Link
+        if ($playlist_access) {
+          $vars['fields'][$i]['edit_topic_link'] = l(theme_image(drupal_get_path('theme', 'educationhub') . "/images/edit_icon.png", "Click To Edit", "Click To Edit"), "curriculum/" .  $vars['node']->nid . "/add_edit_topic/" . $vars['playlist']['topic'][$i]['topic_id'] . "/" . $vars['playlist']['topic'][$i]['topic_title'], array('attributes' => array('class' => 'topic-inline-edit', 'title' => 'Click To Edit', 'alt' => 'Click To Edit'), 'html' => true ));
+
+ //         $vars['fields'][$i]['delete_topic_link'] =  l(theme_image(drupal_get_path('theme', 'educationhub') . "/images/small_close_icon.png", 'Delete this topic', 'Delete this topic'), "curriculum/delete_topic_confirm/" . $vars['playlist']['topic'][$i]['topic_id'] . "/" . $vars['playlist']['topic'][$i]['topic_title'], array('attributes' => array('class' => 'popups-form-reload'), 'html' => true));
+  $vars['fields'][$i]['delete_topic_link'] =  l(theme_image(drupal_get_path('theme', 'educationhub') . "/images/small_close_icon.png", 'Delete this topic', 'Delete this topic'), "curriculum/delete_topic_confirm/" . $vars['playlist']['topic'][$i]['topic_id'] . "/" . $vars['playlist']['topic'][$i]['topic_title'], array('attributes' => array('class' => 'popups-form-reload', 'on-popups-options' => '{hijackDestination:"FALSE"}'), 'html' => true));
+
+        }
+        
+        $flag_subtopic = 1;
+        $sub_topic_count = $vars['playlist']['topic'][$i]['subtopic_count'];
+        for($j=1;$j<= $sub_topic_count;$j++) {
+          if (is_numeric($vars['playlist']['topic'][$i]['subtopic'][$j]['subtopic_asset'])) {
+            $subtopic_node = node_load($vars['playlist']['topic'][$i]['subtopic'][$j]['subtopic_asset']);
+            $taxonomy = !empty($subtopic_node->taxonomy) ? end($subtopic_node->taxonomy):'';
+            $view_path = $subtopic_node->path;
+            $node_type = $subtopic_node->type;
+            $node_title = check_plain($subtopic_node->title);
+            
+            // check if the node is quiz or not if quiz then open the quiz view page in new browser window
+            if ($subtopic_node->type == "quiz") {
+              $options = array('attributes' => array('onclick' => 'win_open(\''.url($view_path).'\');return false;'));
+            }
+            else {
+              $options = array('attributes' => array('class'=>'popups','updateMethod' => 'none'), 'html'=>true, 'query' => 'mode=popup');
+            }
+
+            $vars['fields'][$i]['subfield'][$j]['asset_title'] = l(check_plain($subtopic_node->title), $view_path, $options);
+            $vars['fields'][$i]['subfield'][$j]['content_title'] = $subtopic_node->title;
+            if (function_exists("removing_whitespace")) {
+              $vars['fields'][$i]['subfield'][$j]['body'] = truncate_utf8(removing_whitespace($subtopic_node->body), 75, TRUE, TRUE);
+            }
+            
+          }
+          else {
+            
+            $view_path = $vars['playlist']['topic'][$i]['subtopic'][$j]['subtopic_asset'];
+            $node_type = $vars['playlist']['topic'][$i]['subtopic'][$j]['subtopic_type'];
+            
+            $node_title = check_plain($vars['playlist']['topic'][$i]['subtopic'][$j]['subtopic_title']);
+            // Added to display particular images near the title on edit curriculum page. #Fero July 17
+            $options = array('attributes' => array('onclick' => 'win_open(\''.$view_path.'\');return false;'));
+            $vars['fields'][$i]['subfield'][$j]['asset_title'] = l($node_title, $view_path, $options);
+            $vars['fields'][$i]['subfield'][$j]['content_title'] = $subtopic_node->title;
+            if (function_exists("removing_whitespace")) {
+              $vars['fields'][$i]['subfield'][$j]['body'] = truncate_utf8(removing_whitespace($vars['playlist']['topic'][$i]['subtopic'][$j]['subtopic_description']), 100, TRUE, TRUE);
+            }
+          }
+          if(!$_GET['preview']) {
+            $vars['fields'][$i]['subfield'][$j]['more_icon'] = l('More', $view_path,  array('attributes' => array('nodetype' => $node_type, 'node_title' => $node_title, 'title' => 'Click to Preview')));
+          }
+          $vars['fields'][$i]['subfield'][$j]['type'] = $vars['playlist']['topic'][$i]['subtopic'][$j]['subtopic_type'];
+          // checkbox should be viewable for author in publish (delete) or unpublish state (assign)
+          // checkbox should be viewable for co author in unpublish state (delete)
+          if (($user->uid == $vars['node']->uid || ($flag_coauthor == 1 && $vars['node']->field_published[0]['value'] == 0)) && !$_GET['preview']) {
+            $vars['fields'][$i]['subfield'][$j]['check_box'] = drupal_get_form('curriculum_select_all_form', $vars['playlist']['topic'][$i]['subtopic'][$j]['subtopic_id'],$vars['playlist']['topic'][$i]['topic_id']);
+          }
+          //padma
+          $vars['fields'][$i]['subfield'][$j]['weight'] = drupal_get_form('curriculum_weight_form', $vars['playlist']['topic'][$i]['subtopic'][$j]['subtopic_id'], $vars['playlist']['topic'][$i]['subtopic'][$j]['subtopic_weight']);
+          
+$vars['fields'][$i]['subfield'][$j]['select_topic'] = drupal_get_form('curriculum_select_topic_form',$select_topicid, $vars['playlist']['topic'][$i]['topic_id'],$vars['playlist']['topic'][$i]['subtopic'][$j]['subtopic_id']);
+          if ($playlist_access) {
+            $vars['fields'][$i]['subfield'][$j]['curriculum_id'] = $vars['playlist']['topic'][$i]['subtopic'][$j]['subtopic_id'];
+            $vars['fields'][$i]['subfield'][$j]['status'] = $vars['node']->field_published[0]['value'];
+           // Delete external link in subtopic list
+            $delete_content_icon  = display_delete_unassign(arg(1),$vars['playlist']['topic'][$i]['subtopic'][$j]['subtopic_id']);
+            if($delete_content_icon == '0') {
+              $vars['fields'][$i]['subfield'][$j]['delete_content_link'] = l(theme_image(drupal_get_path('theme', 'educationhub') . "/images/delete_icon.png", 'Delete this content', 'Delete this content'), 'curriculum/delete_content_confirm/' . $vars['playlist']['topic'][$i]['subtopic'][$j]['subtopic_id'], array('attributes' => array('class' => 'popups-form-reload'), 'html' => true ));
+            }
+          }
+          //author only have rights to see assigned member
+          if ($user->uid == $vars['node']->uid &&  $vars['node']->field_published[0]['value'] == 1 && !$_GET['preview']) {
+          // check if the subtopic is assigned
+            if (db_result(db_query('SELECT COUNT(*) as  assign_count FROM {assignment} WHERE from_uid = %d AND st_id = %d', $user->uid, $vars['playlist']['topic'][$i]['subtopic'][$j]['subtopic_id']))) {
+              $vars['fields'][$i]['subfield'][$j]['assigned_members'] = l(theme_image(drupal_get_path('theme', 'educationhub') . "/images/assigned.png", 'Assigned Members', 'Assigned Members'), 'assignment/list/'. $vars['node']->nid . '/' . $vars['playlist']['topic'][$i]['subtopic'][$j]['subtopic_id'],  array('html' => true));
+            }
+          }
+        }
+      }
+    }
+    else {
+      $vars['no_topic'] = "This Playlist has no Topics, Turn on editing and click on the Add New Topic link to get started.";
+    }
+  }
+  
+}
+
+/**
+ * It creates the delete icon for unassinged assets in curriculum.
+ *
+ * @param $cid
+ *   It contains curriculum id
+ *
+ * @param $subtopic_id
+ *   It contains subtopic Id
+ * @return
+ *   It contains subtopic list in an object
+ *
+ */
+function display_delete_unassign($cid, $subtopic_id) {
+  $query = db_result(db_query("SELECT COUNT(*) as cnt FROM {curriculum_topics} OGA INNER JOIN {curriculum_topics_assets} TA
+ON TA.topic_id = OGA.topic_id INNER JOIN {assignment_assign} A ON A.st_id = TA.id WHERE OGA.cid = %d AND A.st_id = %d", $cid, $subtopic_id));
+  if($query == 0) {
+    return $query;
+  }
+}
+
+/**
+ * check node access permission for cloning
+ *
+ * @param $node
+ *  It contain node object
+ *
+ * @return
+ *  It returns true or false.
+ */
+function node_clone_access($node) {
+  global $user;
+  if (user_access('create curriculum content')) {
+    if(!is_object($node)) {
+      return FALSE;
+    }
+    switch($node->type) {
+      case 'quiz':
+        if($node->status) {
+          return TRUE;
+        }
+      break;
+      case 'asset':
+        if($node->field_published[0]['value']) {
+          return TRUE;
+        }
+      break;
+      case 'curriculum':
+        if(playlist_clone_access($node)) {
+          return TRUE;
+        }
+      break;
+      default :
+        return FALSE;
+      break;
+    }
+  }
+  else {
+    return FALSE;
+  }
+}
+
+/**
+ * playlist clone access
+ *
+ * @param $node
+ *  It contains node object
+ *
+ * @return
+ *  It returns true or false.
+ */
+function playlist_clone_access($node) {
+  if(is_object($node)) {
+    if(variable_get('clone_' . $node->type,0) && $node->field_published[0]['value']) {
+      return TRUE;
+    }
+    else {
+      return FALSE;
+    }
+  }
+}
+
+/**
+ * Implementing My Asset Basket in Asset Overview and Curriculum Overview Page
+ */
+function mycurriculum_basket_form() {
+  module_load_include('inc', 'curriculum', 'includes/curriculum');
+  $form = array();
+  $form['mycurriculum-content'] = array(
+    '#type' => 'markup',
+    '#value' => '<div id="curriculum-block-content">' . curriculum_bridge_listing() . '</div>',
+  );
+  return $form;
+}
+
+function curriculum_select_all_form($form_state, $sub_topicid = NULL, $topicid = NULL){
+  $form = array();
+  //Select All Check Box.
+  $form['select_all_' . $sub_topicid] = array(
+    '#type' => 'checkbox',
+    '#id' => 'check-all-' . $sub_topicid,
+    '#prefix' => '<label class=element-invisible for='. 'check-all-' . $sub_topicid . '>' . 'check-all-' . $sub_topicid . '</label>',
+  );
+ 
+  if($sub_topicid != 0){
+    $form['subtopic_id'] = array(
+      '#type' => 'hidden',
+      '#value' => $sub_topicid,
+    );
+  }
+  if($topicid != 0){
+    $form['topic_id'] = array(
+      '#type' => 'hidden',
+      '#value' => $topicid,
+      '#id' => 'topicid',
+    );
+  }
+ 
+  return $form;
+}
+
+function curriculum_weight_form($form_state, $sub_topicid = NULL, $subtopic_weight = NULL){
+  $form = array();
+  
+  //text box for weight
+  $form['weight_'. $sub_topicid] = array(
+    '#type' 	=> 'textfield',
+    '#size'         => 4,
+    '#id' => 'weight-'. $sub_topicid,
+    '#value' => $subtopic_weight,
+    '#attributes' => array('class' => 'topicweight'),
+    '#prefix' => '<label class=weightlabel for='. 'weight-' . $sub_topicid . '>weight</label>',
+  );
+  
+  if($sub_topicid != 0){
+    $form['subtopic_id'] = array(
+      '#type' => 'hidden',
+      '#value' => $sub_topicid,
+      '#id' => 'subtopic_' . $sub_topicid,
+    );
+  }
+  return $form;
+}
+
+function curriculum_select_topic_form($form_state, $topicid = NULL, $tid = NULL, $subtopicid = NULL) {
+  $form= array();
+  $topicid = @array_combine(range(1, count($topicid)), $topicid);
+  //change the array keys as values & values as keys
+  $alltopic_id = @array_flip($topicid);
+  
+  //select box to select  the topic id in the playlist
+  $form['select_topic_'.$subtopicid] = array(
+    '#type' => 'select',
+    '#options' => $alltopic_id,
+    '#id' => 'select_topic_'.$subtopicid,
+    '#prefix' => '<label class=topiclabel for='. 'select_topic_' . $subtopicid . '>topics</label>',
+    '#attributes' => array('class' => 'selecttopic'),
+    '#default_value' => $tid,
+  );
+  return $form;
+}
+
+/**
+ * To Generate playlist listing query
+ */
+function playlist_query($limit = 5, $pager_id = PLAYLIST_BASKET_PAGER_ID, $arguments, $count_status = FALSE) {
+  global $user;
+  $count_query = "SELECT COUNT(DISTINCT(node.nid)) FROM {node} node INNER JOIN {users} users ON node.uid = users.uid LEFT JOIN {node_revisions}  node_revisions ON node.vid = node_revisions.vid
+          LEFT JOIN  {content_field_reviewers} content_field_reviewers ON node.vid = content_field_reviewers.vid
+          LEFT JOIN  {content_field_coauthor} content_field_coauthor ON node.vid = content_field_coauthor.vid
+          LEFT JOIN  {content_field_author} content_field_author ON node.vid = content_field_author.vid
+        WHERE (node.type in ('%s')) AND ((users.uid = %d) OR (content_field_reviewers.field_reviewers_uid=%d) OR (content_field_coauthor.field_coauthor_uid=%d) OR (content_field_author.field_author_uid=%d))";
+
+  $query = "SELECT DISTINCT(node.nid) AS nid, node.title AS node_title, node_revisions.body AS node_revisions_body, node_revisions.format AS node_revisions_format, node.type AS node_type, node.vid AS node_vid,  node.uid AS node_uid, node.created AS node_created, users.name as user_name,  content_field_author.field_author_uid, node_revisions.teaser as teaser, node.comment as comment_setting FROM {node} node
+          INNER JOIN {users} users ON node.uid = users.uid
+          LEFT JOIN {node_revisions} node_revisions ON node.vid = node_revisions.vid
+          LEFT JOIN  {content_field_reviewers} content_field_reviewers ON node.vid = content_field_reviewers.vid
+          LEFT JOIN  {content_field_coauthor} content_field_coauthor ON node.vid = content_field_coauthor.vid
+          LEFT JOIN  {content_field_author} content_field_author ON node.vid = content_field_author.vid
+          WHERE (node.type in ('%s')) AND ((users.uid = %d) OR (content_field_reviewers.field_reviewers_uid=%d) OR (content_field_coauthor.field_coauthor_uid=%d) OR (content_field_author.field_author_uid=%d)) ORDER BY node.changed DESC";
+  if (!$count_status) {
+    return pager_query($query, $limit, PLAYLIST_BASKET_PAGER_ID, $count_query, $arguments);
+  }
+  else {
+    if(module_exists("cache_eb")) {
+      $cache_ouput = cache_get("playlist_listing_count:uid:" . $user->uid, "cache_eb");
+      if ($cache_ouput->data) {
+        return $cache_ouput->data;
+      }
+    }
+    $result = db_affected_rows(db_query($query, $arguments));
+    //set the asset listing cache
+    if(module_exists("cache_eb")) {
+      cache_set("playlist_listing_count:uid:" . $user->uid, $result, "cache_eb");
+    }
+    return $result;
+  }
+}
+/**
+ *
+ *
+ */
+function curriculum_bridge_listing() {
+  global $user, $base_url;
+  $items = array();
+  $limit = 5;
+  $arguments = array('curriculum', $user->uid, $user->uid, $user->uid, $user->uid);
+
+  if (isset($_SESSION['playlist'])) {
+    $_GET['page'] = $_SESSION['playlist'];
+  }
+  $page_result = playlist_query($limit, PLAYLIST_BASKET_PAGER_ID, $arguments);
+  //$page_result = pager_query($query, $limit, PLAYLIST_BASKET_PAGER_ID, $count_query, $arguments);
+ // $playlist_count = $pager_total_items[PLAYLIST_BASKET_PAGER_ID];
+ //Adding preview class for Asset content, Curriculum content edit page.
+ 
+  if (db_affected_rows()) {
+    while($row = db_fetch_object($page_result)) {
+      $output['fields']['nid'] = $row->nid;
+      $output['fields']['node_type'] = check_plain($row->node_type);
+      $output['fields']['title'] = l(truncate_utf8($row->node_title, 80, $wordsafe = TRUE, $dots = FALSE), 'node/' . $row->nid);
+      $output['fields']['topic_hide'] = NULL;
+      $output['fields']['topic_bg_color'] = NULL;
+      //$output['fields']['node_title'] = l(truncate_utf8($row->node_title, 25, TRUE, TRUE), 'node/' . $row->nid);
+      $output['fields']['node_title'] = '<a href="javascript:;">'.truncate_utf8($row->node_title, 20, TRUE, TRUE).'</a>';
+      // to get sub topic list
+      $check_query = db_query('SELECT OGA.cid, OGA.topic_id,OGA.topic_title,OGA.weight FROM {curriculum_topics} OGA WHERE OGA.cid = %d order by OGA.weight asc', $row->nid);
+      // to avoid the values which are appending towards the next playlist
+      unset($output['fields']['main_topic']);
+      if (db_affected_rows()) {
+        $i = 0;
+        while ($object = db_fetch_object($check_query)) {
+          $output['fields']['main_topic'][$i]['row_id'] = $row->nid;
+          $output['fields']['main_topic'][$i]['topic_id'] = $object->topic_id;
+          $output['fields']['main_topic'][$i]['weight'] = $object->weight;
+          $output['fields']['main_topic'][$i]['topic_title'] = check_plain($object->topic_title);
+          // to get asset list
+          $query = db_query('SELECT TA.asset,TA.id,TA.title,TA.description,TA.id,TA.weight FROM {curriculum_topics_assets} TA  WHERE TA.topic_id = %d order by weight asc', $object->topic_id);
+          if (db_affected_rows()) {
+            $j = 1;
+            while ($subtopic = db_fetch_object($query)) {
+              // For subtopic node
+              $output['fields']['main_topic'][$i]['subfield'][$j]['asset_title'] = $subtopic->asset;
+              $output['fields']['main_topic'][$i]['subfield'][$j]['subtopic_weight'] = $subtopic->weight;
+              if (is_numeric($subtopic->asset)) {
+                $node = node_load($subtopic->asset);
+                // To get taxonomy list
+                $taxonomy = !empty($node->taxonomy) ? end($node->taxonomy):'';
+                
+                $output['fields']['main_topic'][$i]['subfield'][$j]['asset_title'] = l(truncate_utf8($node->title, 25, $wordsafe = TRUE, $dots = FALSE), 'node/'.$node->nid, array("attributes" => array("title" => "Click to view")));
+              }
+              else {
+                $output['fields']['main_topic'][$i]['subfield'][$j]['asset_title'] = l(truncate_utf8($subtopic->title, 25, $wordsafe = TRUE, $dots = FALSE), $subtopic->asset, array("attributes" => array("title" => "Click to view")));
+              }
+              $j++;
+            }
+          }
+          $i++;
+        }
+      }
+         
+      $items[] = theme('curriculum_basket', $output);
+    }
+  } else {
+    $items[] = '<div class = "no-playlists">You have no Playlists, click + to start creating!</div>';
+  }
+  
+  $title = '';
+  $type = 'ul';
+  $attributes = array('class' => 'play-lists');
+
+  $basket_result = theme('item_list', $items, NULL, $type, $attributes);
+  $basket_result .= theme('pager', NULL, $limit, PLAYLIST_BASKET_PAGER_ID);
+  //set the Playlist listing cache
+  //cache_set("playlist_basket:uid:" . $user->uid . ":page:" . $playlist_page, $basket_result);
+  return $basket_result;
+
+}

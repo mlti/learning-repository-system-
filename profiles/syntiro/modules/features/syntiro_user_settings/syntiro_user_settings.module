@@ -1,0 +1,3 @@
+<?php
+
+include_once('syntiro_user_settings.features.inc');

@@ -1,0 +1,1519 @@
+<?php
+function lom_menu() { 
+  $items['admin/content/import_course'] = array(
+    'title' => 'Import Course',
+    'page callback' => 'drupal_get_form',    
+    'page arguments' => array('my_xml_import_form'),
+    'access arguments' => array('Import Course under Edubridge'),
+    //'access arguments' => array('administer filters'),
+    //'type' => MENU_CALLBACK,
+  );
+  
+  $items['admin/user/user/import_user_picture'] = array(
+    'title' => 'Upload Profile Image',
+    'page callback' => 'drupal_get_form',    
+    'page arguments' => array('import_user_picture_form'),
+    'access arguments' => array('Import Course under Edubridge'),
+    'type' => MENU_LOCAL_TASK,
+    'weight' => 2,
+  );
+  
+   $items['admin/user/user/import_user_resume'] = array(
+    'title' => 'Upload Resume',
+    'page callback' => 'drupal_get_form',    
+    'page arguments' => array('import_user_resume_form'),
+    'access arguments' => array('Import Course under Edubridge'),
+    'type' => MENU_LOCAL_TASK,
+    'weight' => 3,
+  );
+  
+  $items['admin/user/user/import_user_picture_resume_details'] = array(
+    'title' => 'Import Image and Resume',
+    'page callback' => 'drupal_get_form',    
+    'page arguments' => array('import_user_picture_resume_details_form'),
+    'access arguments' => array('Import Course under Edubridge'),
+    'type' => MENU_LOCAL_TASK,
+    'weight' => 4,
+  );
+  
+  $items['admin/user/user/user_import/add'] = array( 
+    'title' => 'Import User',
+    'page callback' => 'user_import_preferences',
+    'access arguments' => array('import users'),
+    'weight' => 1,
+    'type' => MENU_LOCAL_TASK
+  );
+  
+  return $items;
+}
+
+function lom_perm() {
+  return array('Import Course under Edubridge');
+}
+
+/* Reading the ims manifest file
+ * Create course content
+ * Create assests for the respective course
+ * Todo: Unzip and extract the Mainfest file
+**/
+/*
+ * Todo - Validate: Capture Browse error (if File size exceeds Maximum Limit)
+**/
+
+function my_xml_import_form(){
+  
+  drupal_add_js(drupal_get_path("module",lom)."/lom.js");
+  $form = array();
+  $form['#attributes'] = array('enctype' => 'multipart/form-data');
+  $form['upload'] = array(
+   '#type' => 'file',
+   '#title' => t('Import File'),
+   '#size' => 40,  
+  );
+  
+  $form['submit'] = array(
+    '#type'       => 'submit',
+    '#id'  =>'import-course-submit',
+    '#value'      => 'Submit',	
+  );
+  
+  $form['loading'] = array(
+    '#type'       => 'item',
+    '#value'      => '<div class ="loding-image" style="display:none"></div>',	
+  ); 
+  return $form;
+
+}
+
+function my_xml_import_form_validate($form, &$form_state) { 
+  $path_info = pathinfo($_FILES['files']['name']['upload']);
+  $type = $path_info['extension'];
+  
+  if($_FILES['files']['name']['upload'] == ''){    
+    form_set_error('uplode',t('Please Upload file .'));
+  }
+ 
+  if($type != 'zip'){ 
+    form_set_error('uplode',t('Course Creation unsucessful! Only Zip IMS Content Version 1.1 is supported.'));
+  }
+  
+  $size = $_FILES['files']['size']['upload'];
+  $size = round(($size/1024)/1024);
+  
+  if($size > 40){
+    form_set_error('upload',t('File size exceeds 40 MB Limit'));
+  }
+  
+}
+
+/*
+ * Todo - Validate:file type, 
+ * Course Creation unsucessful! Only Zip IMS Content Version 1.1 is supported.
+ * If Schema Version not 1.1: Course Creation unsucessful! Only IMS Content Version 1.1 is supported.
+ * File upload loader
+**/
+
+function my_xml_import_form_submit($form, &$form_state) {
+
+
+ global $user, $base_url;
+ $uid = $user->uid;
+ 
+ $pos = strrpos($_FILES['files']['name']['upload'],'.');
+ $file_ext =substr($_FILES['files']['name']['upload'],$pos);
+ $explode = explode('/',$_FILES['files']['type']['upload']);
+  
+  
+  
+ $path = file_directory_path().'/imports'; 
+  
+  if(!is_dir($path)){
+    mkdir($path);
+  }
+  
+  
+  $asset_direc_path = file_directory_path().'/asset';   
+  if(!is_dir($asset_direc_path)){
+    mkdir($asset_direc_path);
+  }
+  
+  $course_destination_dir_path = file_directory_path().'/courseImage';   
+  if(!is_dir($course_destination_dir_path)){
+    mkdir($course_destination_dir_path);
+  }
+  
+  $path_info = pathinfo($_FILES['files']['name']['upload']);
+  $type = $path_info['extension'];
+  
+  $filename = explode('.'.$type, $_FILES['files']['name']['upload']);  
+  $destination = $path.'/'.$_FILES['files']['name']['upload'];
+  
+  
+  if (move_uploaded_file($_FILES['files']['tmp_name']['upload'], $destination)) {     
+    
+    $unzip_path = $path.'/'.'unzip_dir/'.$filename[0];    
+    
+    $zip = new ZipArchive;      
+    $res = $zip->open($destination);
+    
+    if ($res == TRUE) {
+      
+      $zip->extractTo($unzip_path.'/');        
+      $zip->close(); 
+      $cfile = $unzip_path.'/imsmanifest.xml';
+      
+      if(file_exists($cfile)) {  
+        $cxml = simplexml_load_file($cfile);  
+        $cnode = new stdClass();  
+        $cnode->type = "course";
+        $cnode->created = time();
+        $cnode->changed = time();
+        $cnode->comment = 0;
+        $cnode->format = 0;
+        $cnode->status = 1;
+        $cnode->uid = $user->uid;
+        //echopre($cxml);
+        
+        foreach ($cxml->metadata as $metaListRow) {
+         // echopre($metaListRow);
+          $ns = $metaListRow->getNameSpaces(true);  
+          $metaList1 = $metaListRow->children($ns['lom']);
+          //echopre($metaList1);
+          $cnode->title = $metaList1->general->title->string;
+          $cnode->field_schema[0]['value'] =$metaListRow->schema;
+          $cnode->field_schemaversion[0]['value']=$metaListRow->schemaversion;
+          $cnode->field_catalog[0]['value']=$metaList1->general->identifier->catalog;
+          $cnode->field_identifier_entry[0]['value']=$metaList1->general->identifier->entry;
+          $cnode->field_lifecycleversion[0]['value']=$metaList1->lifecycle->version->string;
+          $cnode->field_author[0]['value']=$metaList1->lifecycle->contribute->entity;
+          $cnode->field_foldername[0]['value']=$filename[0];
+          $schemaVersion = $metaListRow->schemaversion;
+          
+          $ns1_c = $metaListRow->getNameSpaces(true);  
+          $metaList2_c = $metaListRow->children($ns1_c['adlcp']);
+          
+          $contentFileLocation = $unzip_path.'/'.$filename[0].'/'.$metaList2_c->location;        
+          if(file_exists($contentFileLocation)){
+            $contentxml = simplexml_load_file($contentFileLocation);
+            
+            $nsa = $contentxml->getNameSpaces(true); 
+            $course = $contentxml->children($nsa['lom']);              
+            $course_description = $course->general->description->string;           
+            $cnode->body = $course_description;
+          }
+          
+        }
+        
+        /*
+         * getting image description
+         * image path
+         * level
+         * instructory
+         * */
+        $taxonamy_arr = array();
+        $taxonamy_level_arr= array();
+        $keywordList_arr = array();
+       
+       foreach ($cxml->resources->resource as $row) {        
+        $root_count = explode('/',$row->attributes()->href);
+        if(count($root_count)==2){
+           $file_info = pathinfo($row->attributes()->href);    
+          $file_type = $file_info['extension'];
+          if($file_type == 'jpg' || $file_type == 'jpeg' || $file_type == 'gif' || $file_type == 'gif'){
+            $resListRow = $row ;
+          }
+        }        
+       }
+       //exit;
+       // foreach ($cxml->resources->resource as $resListRow) {
+       // echopre($cxml->resources);
+        
+        //echopre($resListRow);exit;
+        //$resListRow = $cxml->resources->resource[1];
+        if($resListRow) { 
+          
+          $image_ns = $resListRow->getNameSpaces(true);
+          $image_resList1 = $resListRow->metadata->children($image_ns['adlcp']);   
+          $file_info = pathinfo($resListRow->attributes()->href);                           
+          $file_type = $file_info['extension'];
+          //if($i !=1){
+            if(($resListRow->attributes()->type == 'other') && ($file_type != 'pdf') && ($file_type != 'ppt')){
+              
+              $i =1;
+              $course_image_path = $unzip_path.'/'.$filename[0].'/'.$resListRow->attributes()->href;
+             
+              
+              $course_destination_path = $course_destination_dir_path.'/'.$file_info['basename'];
+            
+              $filesize =  filesize($course_image_path);
+              
+              
+              if(copy($course_image_path, $course_destination_path)){
+                
+                db_query("INSERT INTO {files}(uid,filename, filepath, filemime, filesize, status, timestamp) VALUES (%d, '%s', '%s',                             
+        %d, %d, %d ,%d)", $uid, $file_info['basename'] ,$course_destination_path, '', $filesize,1,time());
+                
+                
+                $cnode->field_course_image[0]['fid'] = db_last_insert_id('files','fid');
+                $cnode->field_course_image[0]['list'] = 1;           
+              }
+              
+                $course_image_desc_path = $unzip_path.'/'.$filename[0].'/'.$image_resList1->location;
+              
+               if($course_image_desc_path){
+                $imagexml = simplexml_load_file($course_image_desc_path);
+                $nsa = $imagexml->getNameSpaces(true);
+                $course = $imagexml->children($nsa['lom']);              
+                
+                $cnode->field_course_image_description[0]['value'] = $course->general->description->string;
+                
+                
+                if($course->educational->context->value != ''){
+                  
+                  $terms = taxonomy_get_term_by_name($course->educational->context->value);
+                  $tax_hierarchy1  = new stdClass();   
+                  if($terms[0]->tid){                    
+                               
+                      $taxonamy_level_arr[] = $terms[0]->tid;
+                      $tax_hierarchy1->tid = $terms[0]->tid;
+                      $tax_hierarchy1->parent = 0;
+                      //drupal_write_record('term_hierarchy',$tax_hierarchy1,'tid');
+                    }else{
+                       $tax_data  = new stdClass();
+                       $tax_data->vid = 5;
+                       $tax_data->name = $course->educational->context->value;                     
+                       drupal_write_record('term_data',$tax_data);
+                       $tid = db_last_insert_id('term_data','tid');
+                       $taxonamy_level_arr[] = $tid;
+                       $tax_hierarchy1->tid = $tid;
+                       $tax_hierarchy1->parent = 0;
+                       //drupal_write_record('term_hierarchy',$tax_hierarchy1);
+                       db_query("INSERT INTO term_hierarchy(tid)VALUES(%d)",$tid);
+                    }
+                }
+                
+                
+                foreach($course->lifeCycle->contribute as $instructorsList){
+                 if($instructorsList->entity != '') {
+                    $tax_hierarchy2  = new stdClass();       
+                    $terms = taxonomy_get_term_by_name($instructorsList->entity);
+                    
+                    if($terms[0]->tid){
+                      $taxonamy_arr[] = $terms[0]->tid;
+                      $tax_hierarchy2->tid = $terms[0]->tid;
+                      $tax_hierarchy2->parent = 0;
+                     // drupal_write_record('term_hierarchy',$tax_hierarchy2,'tid');
+                    }else{
+                       $tax_data  = new stdClass();
+                       $tax_data->vid = 3;
+                       $tax_data->name = $instructorsList->entity;                     
+                       drupal_write_record('term_data',$tax_data);
+                       
+                       $tid = db_last_insert_id('term_data','tid');
+                       $taxonamy_arr[] = $tid;
+                       $tax_hierarchy2->tid = $tid;
+                       $tax_hierarchy2->parent = 0;
+                      // drupal_write_record('term_hierarchy',$tax_hierarchy2);
+                       db_query("INSERT INTO term_hierarchy(tid)VALUES(%d)",$tid);
+                    }
+                 }  
+                  
+                }
+                
+                $keywordList_arr = array();
+                foreach($course->classification->keyword as $keywordList){              
+                  //$keywordList_arr[] = $keywordList->string;
+                  
+                  
+                  if($keywordList->string != '') {
+                    $count = count(explode(';',$keywordList->string));
+                    
+                    if(!($count > 1)){
+                       $tax_hierarchy3  = new stdClass();                       
+                       $terms = taxonomy_get_term_by_name($keywordList->string);                    
+                      if($terms[0]->tid){
+                        $keywordList_arr[] = $terms[0]->tid;
+                        $tax_hierarchy3->tid = $terms[0]->tid;
+                        $tax_hierarchy3->parent = 0;
+                       // drupal_write_record('term_hierarchy',$tax_hierarchy3,'tid');
+                        //db_query("INSERT INTO term_hierarchy(tid)VALUES(%d)",$terms[0]->tid);
+                      }else{
+                         $tax_data  = new stdClass();
+                         $tax_data->vid = 4;
+                         $tax_data->name = $keywordList->string;                     
+                         drupal_write_record('term_data',$tax_data);
+                         $tid = db_last_insert_id('term_data','tid');
+                         $keywordList_arr[] = $tid;
+                         $tax_hierarchy3->tid = $tid;
+                         $tax_hierarchy3->parent = 0;
+                        // drupal_write_record('term_hierarchy',$tax_hierarchy3);
+                         db_query("INSERT INTO term_hierarchy(tid)VALUES(%d)",$tid);
+                      }                      
+                       
+                    }
+                 }                               
+                  
+                }
+                
+               }
+            }
+          //}
+        }
+        
+      // echopre($cnode);
+        /*echopre($keywordList_arr);
+          echopre($taxonamy_arr);
+          echopre($taxonamy_level_arr);*/
+       // exit;
+        
+        if($schemaVersion == '1.1'){
+        
+          $nid = db_result(db_query("SELECT nid FROM node WHERE type='course' AND title = '".$cnode->title."'"));
+        
+          if(!$nid){          
+           
+            //$cNode = node_submit($cnode);
+            //echopre($cnode);exit;
+            node_save($cnode);
+            
+            $tax  = new stdClass();
+            $tax->nid = $cnode->nid;
+            $tax->vid = $cnode->vid;
+                        
+            
+            if(count($taxonamy_arr)){
+             
+              foreach($taxonamy_arr as $key =>$val){
+                $tax->tid = $val ;
+                $author_count = db_result(db_query("SELECT COUNT(*) FROM term_node WHERE nid=%d AND vid=%d AND tid=%d",$tax->nid,$tax->vid,$tax->tid));
+                if($author_count == 0) {
+                  drupal_write_record('term_node',$tax);
+                }                     
+               
+              }
+            }
+            
+            $tax1  = new stdClass();
+            $tax1->nid = $cnode->nid;
+            $tax1->vid = $cnode->vid;
+            
+            
+           
+            
+            if(count($keywordList_arr)){              
+              foreach($keywordList_arr as $key =>$val){
+                $tax1->tid = $val ;
+                 $keyword_count = db_result(db_query("SELECT COUNT(*) FROM term_node WHERE nid=%d AND vid=%d AND tid=%d",$tax1->nid,$tax1->vid,$tax1->tid));
+                  if($keyword_count == 0){  
+                    drupal_write_record('term_node',$tax1);
+                  }
+                
+              }
+            }
+            
+            $tax2  = new stdClass();
+            $tax2->nid = $cnode->nid;
+            $tax2->vid = $cnode->vid;         
+           
+            if(count($taxonamy_level_arr)){             
+              foreach($taxonamy_level_arr as $key =>$val){
+                $tax2->tid = $val ;
+                $level_count = db_result(db_query("SELECT COUNT(*) FROM term_node WHERE nid=%d AND vid=%d AND tid=%d",$tax2->nid,$tax2->vid,$tax2->tid));
+                if($level_count == 0) { 
+                  drupal_write_record('term_node',$tax2);
+                }
+                  
+              }
+            }
+            drupal_set_message(t("The Course:  ".l($cnode->title,'node/'.$cnode->nid)." has been successfully imported."));
+            drupal_set_message(t("Assets imported include:"));
+            
+            // foreach ($cxml->organizations->organization as $orgListRow) {
+              //$ns1 = $orgListRow->getNameSpaces(true);
+             // echopre($orgListRow->item);
+             //}
+             //exit;
+            foreach ($cxml->resources->resource as $resListRow) {
+            
+              $ns1 = $resListRow->getNameSpaces(true);        
+              if($ns1['adlcp']) {
+                
+                $resList1 = $resListRow->metadata->children($ns1['adlcp']);
+               
+                
+                if(count($resList1)){
+                  
+                    $afile = $base_url.'/'.$unzip_path.'/'.$filename[0].'/'.$resList1->location; 
+                    $asset_path = $unzip_path.'/'.$filename[0].'/'.$resList1->location;         
+                    // Watchdog: $afile no file found, $resList1->location Asset creation unsuccessful, contact site administrator.
+                    $location = $resList1->location; 
+                    if(file_exists($asset_path)) { 
+                      $axml = simplexml_load_file($afile);      
+                      if($axml) {
+                        
+                        $nsa = $axml->getNameSpaces(true); 
+                        $asset = $axml->children($nsa['lom']);   
+                        $anode = new stdClass();
+                        $anode->title = $asset->general->title->string;       
+                        
+                        //$resListRow->attributes()->type.'<br>';
+                        
+                        $file_info = pathinfo($resListRow->attributes()->href);                        
+                        $file_type = $file_info['extension'];
+                        if($file_info['basename'] != 'index.htm')
+                        {
+                          $cate_arr =explode('/',$resListRow->attributes()->href);
+                          if(count($cate_arr)>2){
+                            $asset_category = $cate_arr[1];
+                            
+                          }
+                        
+                          if($resListRow->attributes()->type == 'webcontent'){              
+                            $myFile = $unzip_path.'/'.$filename[0].'/'.$resListRow->attributes()->href;
+                            $theData = file_get_contents($myFile);    
+                            //$anode->body = $theData;
+                          }else{                          
+                            $anode->body = $asset->general->description->string;
+                            $anode->teaser = truncate_utf8($asset->general->description->string, 200, TRUE);
+                             //$file_info = pathinfo($resListRow->attributes()->href);                           
+                             //$file_type = $file_info['extension'];
+                             //echo $file_type;
+                             //echo "<br>";
+                             $fid = '';
+                              if($file_type == 'pdf' || $file_type == 'jpg' || $file_type == 'jpeg' || $file_type == 'gif'){
+                                
+                                $filePath = $unzip_path.'/'.$filename[0].'/'.$resListRow->attributes()->href;
+                                if(file_exists($filePath)){
+                                  
+                                  $director_asset_filename = $asset_direc_path.'/'.$file_info['basename'];                                
+                                  $filesize =  filesize($filePath);
+                                  if(copy($filePath, $director_asset_filename)){                                  
+                                    
+                                  db_query("INSERT INTO {files}(uid,filename, filepath, filemime, filesize, status, timestamp) VALUES (%d, '%s', '%s',                             
+        %d, %d, %d ,%d)", $uid, $file_info['basename'] ,$director_asset_filename, '', $filesize,1,time());
+                                   $fid = db_last_insert_id('files','fid');                                 
+                                
+                                   
+                                  }
+                                }
+                              }
+                          }            
+                          
+                           
+                          //$anode->body = $asset->general->description->string;
+                          $anode->type = "asset";
+                          $anode->created = time();
+                          $anode->changed = time();
+                          $anode->comment = 0;
+                          $anode->format = 0;
+                          $anode->status = 1;
+                          $anode->uid = $user->uid;
+                          $anode->field_node_reference[0]['nid'] = $cnode->nid;
+                          $anode->field_course_reference[0]['nid'] = $cnode->nid;
+                          $anode->field_identifier[0]['value'] = $asset->relation->resource->identifier->entry;
+                       
+                          $anode->field_learning_resource[0]['value'] = $asset->educational->learningResourceType->value;
+                          $anode->field_format[0]['value'] = $asset->technical->format;
+                          $anode->field_language[0]['value'] = $asset->general->language;
+                          
+                          //$anode->field_description[0]['value'] = $asset->general->description->string;
+                          
+                          $anode->field_rights[0]['value'] = $asset->rights->copyrightAndOtherRestrictions->value;                          
+                          $anode->field_copyright[0]['value'] = $asset->rights->description->string;
+                         
+                          
+                          //$anode->field_asset_author[0]['value'] = $asset->lifeCycle->contribute->entity;
+                          $anode->field_relation[0]['value'] = $asset->relation->resource->description->string;                        
+                          $anode->field_custom_file_upload[0]['fid'] = $fid;
+                          $anode->field_custom_file_upload[0]['list'] = 1;
+                          
+                          //$anode->field_tags[0]['value'] = 
+                          //$anode->field_location[0]['value'] = $asset->technical->location;
+                          
+                          $anode->field_location[0]['value'] = $asset_path;
+                          
+                          
+                             //echopre($asset->lifeCycle->contribute);
+                            // echo "<br>";
+                            $taxonamy_arr = array();
+                            $taxonamy_ass_cat_arr = array();
+                          foreach($asset->lifeCycle->contribute as $instructorsList){
+                            if($instructorsList->entity != '') {
+                               $tax_hierarchy2  = new stdClass();       
+                               $terms = taxonomy_get_term_by_name($instructorsList->entity);
+                               
+                               if($terms[0]->tid){
+                                 $taxonamy_arr[] = $terms[0]->tid;
+                                 $tax_hierarchy2->tid = $terms[0]->tid;
+                                 $tax_hierarchy2->parent = 0;
+                                // drupal_write_record('term_hierarchy',$tax_hierarchy2,'tid');
+                               }else{
+                                  $tax_data  = new stdClass();
+                                  $tax_data->vid = 3;
+                                  $tax_data->name = $instructorsList->entity;                     
+                                  drupal_write_record('term_data',$tax_data);
+                                  
+                                  $tid = db_last_insert_id('term_data','tid');
+                                  $taxonamy_arr[] = $tid;
+                                  $tax_hierarchy2->tid = $tid;
+                                  $tax_hierarchy2->parent = 0;
+                                 // drupal_write_record('term_hierarchy',$tax_hierarchy2);
+                                  db_query("INSERT INTO term_hierarchy(tid)VALUES(%d)",$tid);
+                               }
+                            }                               
+                           }
+                           
+                           //echopre($taxonamy_arr);
+                           
+                      if($asset_category != ''){
+                  
+                            $terms = taxonomy_get_term_by_name($asset_category);
+                            $tax_hierarchy1  = new stdClass();   
+                            if($terms[0]->tid){                    
+                                         
+                                $taxonamy_ass_cat_arr[] = $terms[0]->tid;
+                                $tax_hierarchy1->tid = $terms[0]->tid;
+                                $tax_hierarchy1->parent = 0;
+                                //drupal_write_record('term_hierarchy',$tax_hierarchy1,'tid');
+                              }else{
+                                
+                                 $tax_data1  = new stdClass();
+                                 $tax_data1->vid = 1;
+                                 $tax_data1->name = $asset_category;                     
+                                 drupal_write_record('term_data',$tax_data1);
+                                 $tid = db_last_insert_id('term_data','tid');
+                                 $taxonamy_ass_cat_arr[] = $tid;
+                                 $tax_hierarchy1->tid = $tid;
+                                 $tax_hierarchy1->parent = 0;
+                                 //drupal_write_record('term_hierarchy',$tax_hierarchy1);
+                                 db_query("INSERT INTO term_hierarchy(tid)VALUES(%d)",$tid);
+                              }
+                          }
+                          
+                          $keywordList_arr = array();
+                          foreach($asset->classification->keyword as $keywordList){              
+                            //$keywordList_arr[] = $keywordList->string;
+                            
+                            
+                            if($keywordList->string != '') {
+                              $count = count(explode(';',$keywordList->string));
+                              
+                              if(!($count > 1)){
+                                 $tax_hierarchy3  = new stdClass();                       
+                                 $terms = taxonomy_get_term_by_name($keywordList->string);                    
+                                if($terms[0]->tid){
+                                  $keywordList_arr[] = $terms[0]->tid;
+                                  $tax_hierarchy3->tid = $terms[0]->tid;
+                                  $tax_hierarchy3->parent = 0;
+                                 // drupal_write_record('term_hierarchy',$tax_hierarchy3,'tid');
+                                  //db_query("INSERT INTO term_hierarchy(tid)VALUES(%d)",$terms[0]->tid);
+                                }else{
+                                   $tax_data  = new stdClass();
+                                   $tax_data->vid = 4;
+                                   $tax_data->name = $keywordList->string;                     
+                                   drupal_write_record('term_data',$tax_data);
+                                   $tid = db_last_insert_id('term_data','tid');
+                                   $keywordList_arr[] = $tid;
+                                   $tax_hierarchy3->tid = $tid;
+                                   $tax_hierarchy3->parent = 0;
+                                  // drupal_write_record('term_hierarchy',$tax_hierarchy3);
+                                   db_query("INSERT INTO term_hierarchy(tid)VALUES(%d)",$tid);
+                                }                      
+                                 
+                              }
+                           }                               
+                            
+                          }
+                          
+                          
+                          //echopre($keywordList_arr);
+                          
+                          //echopre($anode); 
+                          node_save($anode);
+                          
+                         
+                           $tax  = new stdClass();
+                           $tax->nid = $anode->nid;
+                           $tax->vid = $anode->vid;                                       
+                             $taxonamy_arr = array_unique($taxonamy_arr);
+                             $author_count = 0;
+                            if(count($taxonamy_arr)){                             
+                              foreach($taxonamy_arr as $key =>$val){
+                                $tax->tid = $val ;
+                                $author_count = db_result(db_query("SELECT COUNT(*) FROM term_node WHERE nid=%d AND vid=%d AND tid=%d",$tax->nid,$tax->vid,$tax->tid));
+                                if($author_count == 0) {
+                                  drupal_write_record('term_node',$tax);
+                                }
+                              }
+                            }
+                            
+                           $tax1  = new stdClass();
+                           $tax1->nid = $anode->nid;
+                           $tax1->vid = $anode->vid;                                       
+                             $taxonamy_ass_cat_arr = array_unique($taxonamy_ass_cat_arr);
+                             $ass_cat_count = 0;
+                            if(count($taxonamy_ass_cat_arr)){                             
+                              foreach($taxonamy_ass_cat_arr as $key =>$val){
+                                $tax1->tid = $val ;
+                                $ass_cat_count = db_result(db_query("SELECT COUNT(*) FROM term_node WHERE nid=%d AND vid=%d AND tid=%d",$tax1->nid,$tax1->vid,$tax1->tid));
+                                if($ass_cat_count == 0) { 
+                                  drupal_write_record('term_node',$tax1);
+                                }
+                              }
+                            }
+                            
+                            
+                            $tax2  = new stdClass();
+                            $tax2->nid = $anode->nid;
+                            $tax2->vid = $anode->vid;                        
+                            $keywordList_arr = array_unique($keywordList_arr);
+                            $keyword_count = 0;
+                            if(count($keywordList_arr)){              
+                              foreach($keywordList_arr as $key =>$val){
+                                $tax2->tid = $val ;
+                                $keyword_count = db_result(db_query("SELECT COUNT(*) FROM term_node WHERE nid=%d AND vid=%d AND tid=%d",$tax2->nid,$tax2->vid,$tax2->tid));
+                                if($keyword_count == 0){  
+                                  drupal_write_record('term_node',$tax2);
+                                }
+                              }
+                            }                            
+                            
+                            
+                          drupal_set_message(t(l(ucfirst("$anode->title"),'node/'.$anode->nid)));                          
+                          
+                      }
+                        
+                        
+                      }
+                  }else{
+                    watchdog('asset', "$afile no file found, Asset creation unsuccessful, contact site administrator");
+                    drupal_set_message("$afile no file found, Asset creation unsuccessful, contact site administrator");
+                  }
+                }         
+              }
+            } //exit;
+          }else{
+            drupal_set_message(t("This course is already in EducationBridge . ".l("Click Here to View Course",'node/'.$nid))); 
+          }
+        }else{
+          drupal_set_message(t("Course Creation unsucessful! Only IMS Content Version 1.1 is supported")); 
+        }
+      }else{      
+        drupal_set_message(t('Course creation unsucessful! imsmanifest.xml File does not exist.'));    
+      }
+    } 
+  }else{
+    drupal_set_message(t('Upload Error.'));   
+  }
+  
+}
+
+
+
+
+
+
+
+function lom_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
+ // echo $node->type;
+  
+ switch ($op) {
+  /* case 'delete': 
+          $node_type = $node->type;
+          if($node->type == 'course'){
+            $qry = db_query("SELECT nid FROM content_type_asset WHERE field_node_reference_nid=%d",$node->nid);
+               while($fetch = db_fetch_object($qry)){
+                 $asset_nid = $fetch->nid;
+                 db_query("DELETE FROM node WHERE nid=%d",$asset_nid);
+               }
+             db_query("DELETE FROM content_type_asset WHERE field_node_reference_nid=%d",$node->nid);
+          }         
+          drupal_goto('admin/content/node');
+           break;/**/
+    case 'view':
+     if($node->type == 'asset'){      
+       drupal_add_js(drupal_get_path("module",lom)."/lom.js");
+       
+      }
+      break;
+  }
+}
+
+function import_user_picture_resume_details_form(){
+  global $user;
+  $upload_uid = 1;         
+  //$node = node_load(array('type' => 'profile', 'uid' => $upload_uid));
+  //$my_taxonomy_tags = "dsa432, 432fsa";
+  //$tags = explode(",", $my_taxonomy_tags);
+  //foreach($tags as $key => $val) {                
+  //  //see if this term already exists and fetch it if it does
+  //  $term = taxonomy_get_term_by_name($val);
+  //  //if it doesn't exist, make it
+  //  if ($term == array()){ 
+  //    //make a new class to hold the term for taxonomy 1
+  //    $taxonomy = array();
+  //    $taxonomy['name'] = trim($val);
+  //    $taxonomy['vid'] = 7;
+  //    taxonomy_save_term($taxonomy);
+  //      //now fetch it so we have it's tid
+  //    $term = taxonomy_get_term_by_name($val);
+  //  }
+  //  foreach($term as $k => $val) {
+  //    if ($val->vid == 7) {
+  //      $term_taxonomy = new stdClass();
+  //      $term_taxonomy->name = $val->name;
+  //      $term_taxonomy->vid = $val->vid;
+  //      $term_taxonomy->tid = $val->tid;
+  //      $node->taxonomy[$val->tid] = $term_taxonomy;
+  //    }
+  //  }
+  //}
+  ////echopre($node->taxonomy);exit;
+  //$node = node_submit($node);
+  //node_save($node);
+  
+  
+  drupal_add_js(drupal_get_path("module",lom)."/lom.js");
+  $form = array();
+  $form['#attributes'] = array('enctype' => 'multipart/form-data');
+  $form['upload'] = array(
+   '#type' => 'file',
+   '#title' => t('File to Upload'),
+   '#size' => 40,   
+   '#description' => t('(csv)'),
+  );
+  $form['submit'] = array(
+    '#type'       => 'submit',
+    '#id'  =>'import-course-submit',
+    '#value'      => 'Submit',	
+  );
+  $form['loading'] = array(
+    '#type'       => 'item',
+    '#value'      => '<div class ="loding-image" style="display:none"></div>',	
+  );
+  return $form;
+}
+
+function import_user_picture_resume_details_form_validate($form, &$form_state) {
+  
+  $path_info = pathinfo($_FILES['files']['name']['upload']);
+  $type = $path_info['extension'];
+  
+  if($_FILES['files']['name']['upload'] == ''){    
+    form_set_error('uplode',t('Please Upload file .'));
+  }
+  
+  if($type != 'csv'){ 
+    form_set_error('uplode',t('Upload file must be csv type .'));
+  }
+  
+  $size = $_FILES['files']['size']['upload'];
+  $size = round(($size/1024)/1024);
+  
+  if($size > 40){
+    form_set_error('upload',t('File size exceeds 40 MB Limit'));
+  }
+}
+function import_user_picture_resume_details_form_submit($form, &$form_state) {
+  
+  global $user;
+  $username_not_exist = array();
+  $username_exist = array();
+  $picture_not_exist = array();
+  $$resume_not_exist = array();
+  $resume_user_not_exit_table = array();
+  $path_info = pathinfo($_FILES['files']['name']['upload']);
+  $type = $path_info['extension'];   
+  $directoryName = file_directory_path();
+ 
+  
+  $newfile_name = $_FILES['files']['name']['upload'];
+  $import_file_path = $directoryName.'/'.$newfile_name; 
+  
+  if($form_state['clicked_button']['#post']['op']=='Submit'){
+    
+    if (file_exists($import_file_path)) {
+      
+		  drupal_set_message(t('File already exists'), 'error');
+		  return false;
+    }else{
+      
+      if (!move_uploaded_file($_FILES['files']['tmp_name']['upload'], $import_file_path)) {
+        
+        drupal_set_message(t('File upload error. Could not move uploaded file.'));
+        return false;
+      }else{
+        
+        if($type == 'csv'){
+          
+           $pre_header =array(0 => 'name',
+                              1 => 'picture',
+                              2 => 'resume',
+                              3 => 'subject',
+                              4 => 'discipline',
+                              5 => 'Class/Grade');
+           
+           $handle = fopen("$import_file_path", "r");
+           $header = fgetcsv($handle, 1000, ",");
+           if(count($header) == 6) {
+            
+              array_walk($header, 'remove_quotes');
+              array_walk($header, 'trim_value');
+              
+              if($header === $pre_header){
+                
+                while (($data = fgetcsv($handle, 1000, ",")) !== FALSE) {
+                  
+                  $image_path = $directoryName.'/mypicture/userpicture/'.$data[1];                  
+                  $resume_path_source = $directoryName.'/resume/userresume/'.$data[2];
+                  
+                  //this code for resume  picture
+                  $original_picturename = $data[1];
+                  $original_resumename = $data[2];
+                  $original_subject = $data[3]; 
+                  $original_discipline = $data[4];
+                  $original_class_grade = $data[5]; 
+                  $upload_uid = db_result(db_query("SELECT uid FROM users WHERE name='%s'",$data[0]));
+                  
+                  if($upload_uid) {   
+                    if($data[1] != '')
+                    {                       
+                      if(file_exists($image_path))
+                      {    
+                        $picture_info = pathinfo($data[1]);                        
+                        $picture_type = $picture_info['extension'];
+                        $pictureName = explode('.'.$picture_type, $data[1]); 
+                        $data[1] = $pictureName[0].'-'.$upload_uid.'.'.$picture_type; 
+                        $picturePath = $directoryName.'/pictures/'.$data[1];                            
+                        db_query("UPDATE users SET picture = '%s' WHERE name = '%s'", $picturePath, $data[0]);                            
+                        if(db_affected_rows()>0)
+                        {
+                          $picturePath = $directoryName.'/pictures/'.$data[1];                                                                        
+                          if(file_exists($image_path)){
+                            if(copy($image_path, $picturePath)){
+                              $username_exist[$data[0]] = $original_picturename;
+                              unlink($image_path);
+                            }
+                          }                                                                       
+                        }else{
+                          if($original_picturename != '')
+                            $username_not_exist[] = $original_picturename;
+                        }
+                      }else{
+                        $picture_not_exist[] = $original_picturename;
+                      }
+                    }
+                  }
+                  else {
+                    if($original_picturename != '')
+                      $username_not_exist[] = $original_picturename;
+                  }
+                  
+                  
+                  /*
+                  * this code for resume  update */
+                  
+                  $upload_uid = db_result(db_query("SELECT uid FROM users  WHERE name = '%s'", $data[0]));                  
+                  if($upload_uid)
+                  {       
+                   if($data[2] != '')
+                   {                    
+                      if(file_exists($resume_path_source))
+                      {
+                        $resume_info = pathinfo($data[2]);                      
+                        $resume_type = $resume_info['extension'];
+                        $resumeName = explode('.'.$resume_type, $data[2]); 
+                        $data[2] = $resumeName[0].'-'.$upload_uid.'.'.$resume_type; 
+                        $resumePath_des = $directoryName.'/myresume/'.$data[2];                           
+                        $filesize =  filesize($resume_path_source);
+                        db_query("INSERT INTO {files}(uid,filename, filepath, filemime, filesize, status, timestamp) VALUES (%d, '%s', '%s',                             
+    %d, %d, %d ,%d)", $upload_uid, $data[2] ,$resumePath_des, '', $filesize,1,time());                        
+                        $last_fid = db_last_insert_id('files','fid');
+                        $profile_node_nid = db_result(db_query("SELECT nid FROM node WHERE type='profile' AND uid =$upload_uid"));
+                        if(db_affected_rows()>0)
+                        {                          
+                          $resumePath_des = $directoryName.'/myresume/'.$data[2]; 
+                          if(copy($resume_path_source, $resumePath_des))
+                          {
+                            $username_resume_exist[$data[0]] =$original_resumename;
+                            unlink($resume_path_source);
+                            db_query("UPDATE content_type_profile SET field_resume_fid = '%d',field_resume_list = %d WHERE nid = %d ", $last_fid, 1,$profile_node_nid);
+                          }  
+                        }                     
+                      }else{
+                        if($original_resumename != '')
+                          $resume_not_exist[] = $original_resumename;
+                      }
+                    }
+                  }
+                  else{
+                    if($original_resumename != '')
+                      $resume_user_not_exit_table[] = $original_resumename;
+                  }
+                  $upload_uid = db_result(db_query("SELECT uid FROM users WHERE name='%s'",$data[0]));
+                  if($upload_uid) {   
+                    if($data[3] != '')
+                    {
+                      $node = '';
+                      $node = node_load(array('type' => 'profile', 'uid' => $upload_uid),NULL, TRUE);
+                     
+                      $my_taxonomy_tags = '';
+                      $my_taxonomy_tags = $data[3];
+                      
+                      $tags = '';
+                      $tags = explode(",", $my_taxonomy_tags);
+                       
+                      if ($tags) {
+                        foreach($tags as $key => $val) {
+                          
+                          //see if this term already exists and fetch it if it does
+                          $term = '';
+                          $term = taxonomy_get_term_by_name(trim($val));
+                          $flag = 0;
+                          if ($term) {
+                            foreach($term as $k1 => $val1) {
+                              if ($val1->vid == 7) {
+                                $flag = 1;
+                              }
+                            }
+                          }
+                          //if it doesn't exist, make it
+                          if ($term == '' || $flag == 0) { 
+                            //make a new class to hold the term for taxonomy 1
+                            $taxonomy = '';
+                            $taxonomy['name'] = trim($val);
+                            $taxonomy['vid'] = SUBJECT;
+                            taxonomy_save_term($taxonomy);
+                            //now fetch it so we have it's tid
+                            $term = '';
+                            $term = taxonomy_get_term_by_name($val);
+                          }
+                          if ($term) {
+                            foreach($term as $k2 => $val2) {
+                              if ($val2->vid == SUBJECT) {                         
+  
+                                $term_taxonomy = new stdClass();
+                                $term_taxonomy->name = trim($val2->name);
+                                $term_taxonomy->vid = $val2->vid;
+                                $term_taxonomy->tid = $val2->tid;
+                                //$term_taxonomy = array();
+                                //$term_taxonomy['name'] = trim($val2->name);
+                                //$term_taxonomy['vid'] = $val2->vid;
+                                //$term_taxonomy['tid'] = $val2->tid;
+                                
+                                $node->taxonomy[$val2->tid] = $term_taxonomy;
+                                $find = db_result(db_query("select * from term_node where tid=%d and nid=%d and vid=%d", $val2->tid, $node->nid, $node->vid));
+                                if (!$find)  {
+                                  db_query('INSERT INTO {term_node} (nid, vid, tid) VALUES (%d, %d, %d)', $node->nid, $node->vid, $val2->tid);
+                                }
+                                //db_query('INSERT INTO {term_node} (nid, vid, tid) VALUES (%d, %d, %d)', $node->nid, $node->vid, $val2->tid);
+                                
+                                //$term_taxonomy;
+                                 
+                              }
+                            }
+                          }
+                        }
+                        //$node = node_submit($node);
+                        ////save the tagged node
+                        //node_save($node);
+                      }
+                    }
+                    if($data[4] != '')
+                    {
+                      $node = '';
+                      $node = node_load(array('type' => 'profile', 'uid' => $upload_uid),NULL, TRUE);
+                      $my_taxonomy_tags = '';
+                      $my_taxonomy_tags = $data[4];
+                      $tags = '';
+                      $tags = explode(",", $my_taxonomy_tags);
+                      if ($tags) {
+                        foreach($tags as $key => $val) {                
+                          //see if this term already exists and fetch it if it does
+                          $term = '';
+                          $term = taxonomy_get_term_by_name(trim($val));
+                          $flag = 0;
+                          if ($term) {
+                            foreach($term as $k1 => $val1) {
+                              if ($val1->vid == DISCIPLINE) {
+                                $flag = 1;
+                              }
+                            }
+                          }
+                          //if it doesn't exist, make it
+                          if ($term == '' || $flag == 0){ 
+                            //make a new class to hold the term for taxonomy 1
+                            $taxonomy = '';
+                            $taxonomy['name'] = trim($val);
+                            $taxonomy['vid'] = 8;
+                            taxonomy_save_term($taxonomy);
+                            //now fetch it so we have it's tid
+                            $term = '';
+                            $term = taxonomy_get_term_by_name($val);
+                          }
+                          if ($term) {
+                            foreach($term as $k2 => $val2) {
+                              if ($val2->vid == DISCIPLINE) {
+                                $term_taxonomy = new stdClass();
+                                $term_taxonomy->name = trim($val2->name);
+                                $term_taxonomy->vid = $val2->vid;
+                                $term_taxonomy->tid = $val2->tid;
+                                $node->taxonomy[$val2->tid] = $term_taxonomy;
+                                $find = db_result(db_query("select * from term_node where tid=%d and nid=%d and vid=%d", $val2->tid, $node->nid, $node->vid));
+                                if (!$find)  {
+                                  db_query('INSERT INTO {term_node} (nid, vid, tid) VALUES (%d, %d, %d)', $node->nid, $node->vid, $val2->tid);
+                                }
+                         //       db_query('INSERT INTO {term_node} (nid, vid, tid) VALUES (%d, %d, %d)', $node->nid, $node->vid, $val2->tid);
+                              }
+                            }
+                          }
+                        }
+                        //$node = node_submit($node);
+                        ////save the tagged node
+                        //node_save($node);
+                      }
+                    }
+                    // For Taxonomy Class Grade 
+                    if($data[5] != '')
+                    {
+                      $node = '';
+                      $node = node_load(array('type' => 'profile', 'uid' => $upload_uid),NULL, TRUE);
+                      $my_taxonomy_tags = '';
+                      $my_taxonomy_tags = $data[5];
+                      $tags = '';
+                      $tags = explode(",", $my_taxonomy_tags);
+                      if ($tags) {
+                        foreach($tags as $key => $val) {                
+                          //see if this term already exists and fetch it if it does
+                          $term = '';
+                          $term = taxonomy_get_term_by_name(trim($val));
+                          $flag = 0;
+                          if ($term) {
+                            foreach($term as $k1 => $val1) {
+                              if ($val1->vid == CLASS_GRADE) {
+                                $flag = 1;
+                              }
+                            }
+                          }
+                          //if it doesn't exist, make it
+                          if ($term == '' || $flag == 0){ 
+                            //make a new class to hold the term for taxonomy 1
+                            $taxonomy = '';
+                            $taxonomy['name'] = trim($val);
+                            $taxonomy['vid'] = CLASS_GRADE;
+                            taxonomy_save_term($taxonomy);
+                            //now fetch it so we have it's tid
+                            $term = '';
+                            $term = taxonomy_get_term_by_name($val);
+                          }
+                          if ($term) {
+                            foreach($term as $k2 => $val2) {
+                              if ($val2->vid == CLASS_GRADE) {
+                                $term_taxonomy = new stdClass();
+                                $term_taxonomy->name = trim($val2->name);
+                                $term_taxonomy->vid = $val2->vid;
+                                $term_taxonomy->tid = $val2->tid;
+                                $node->taxonomy[$val2->tid] = $term_taxonomy;
+                                $find = db_result(db_query("select * from term_node where tid=%d and nid=%d and vid=%d", $val2->tid, $node->nid, $node->vid));
+                                if (!$find)  {
+                                  db_query('INSERT INTO {term_node} (nid, vid, tid) VALUES (%d, %d, %d)', $node->nid, $node->vid, $val2->tid);
+                                 //echopre(sprintf('INSERT INTO {term_node} (nid, vid, tid) VALUES (%d, %d, %d)', $node->nid, $node->vid, $val2->tid));
+                                }
+                              //  
+                              }
+                            }
+                          }
+                        }
+                        //$node = node_submit($node);
+                        ////save the tagged node
+                        //node_save($node);
+                      }
+                    }
+                  }
+                  else {
+                    if($original_subject != '')
+                      $username_not_exist[] = $original_subject;
+                  }
+                  //$upload_uid = db_result(db_query("SELECT uid FROM users WHERE name='%s'",$data[0]));
+                  //if($upload_uid) {   
+                  //  
+                  //}
+                  //else {
+                  //  if($original_discipline != '')
+                  //    $username_not_exist[] = $original_discipline;
+                  //}
+                  
+                  //$upload_uid = db_result(db_query("SELECT uid FROM users WHERE name='%s'", $data[0]));
+                  //if($upload_uid) {   
+                  //  
+                  //}
+                  //else {
+                  //  if($original_class_grade != '')
+                  //    $username_not_exist[] = $original_class_grade;
+                  //}
+                   
+                } 
+              }else{ 
+                drupal_set_message(t("Invalid file"));
+              }
+            }else{ 
+              drupal_set_message(t("Invalid file"));
+            }
+           
+          
+        }
+        
+        if(count($username_exist)){
+          drupal_set_message("The Following Profile images have been uploaded successfully.");
+          foreach($username_exist as $key =>$val){
+            drupal_set_message($key.": ".$val);
+          }
+        }
+        
+        if(count($username_not_exist)){
+          drupal_set_message("<br />The Following images have no user, please create user before creating images.");          
+          foreach($username_not_exist as $key =>$val){
+            drupal_set_message($val);
+          }
+        }
+        
+        if(count($picture_not_exist)){
+          drupal_set_message("<br />The Following Profile images were not uploaded. Please ".l('Upload Profile Image','admin/content/import_user_picture')." to the server and reupload excel");
+          foreach($picture_not_exist as $key =>$val){
+            drupal_set_message($val);
+          }
+        }
+        
+        
+        if(count($username_resume_exist)){
+          drupal_set_message("<br />The Following Profile resume have been uploaded successfully.");
+          foreach($username_resume_exist as $key =>$val){
+           drupal_set_message($key.": ".$val);
+          }
+        }
+        
+        if(count($resume_user_not_exit_table)){
+          drupal_set_message("<br />The Following resume have no user, please create user before creating resume.");
+          foreach($resume_user_not_exit_table as $key =>$val){
+            drupal_set_message($val);
+         }
+        }
+        
+        if(count($resume_not_exist)){
+          drupal_set_message("<br />The Following Profile resume were not uploaded. Please ".l('Upload Profile Resumes','admin/content/import_user_resume')." to the server and reupload excel");
+          foreach($resume_not_exist as $key =>$val){
+            drupal_set_message($val);
+          }
+        }
+      }
+    }
+  }
+}
+
+function trim_value(&$value)
+{
+    $value = trim($value);
+}
+function remove_quotes(&$value)
+{
+  $value = str_replace('"', '', $value);
+
+}
+
+function import_user_picture_form(){
+  drupal_add_js(drupal_get_path("module",lom)."/lom.js");
+  $form = array();
+  $form['#attributes'] = array('enctype' => 'multipart/form-data');
+  $form['upload'] = array(
+   '#type' => 'file',
+   '#title' => t('Upload User Picture'),
+   '#size' => 40,
+   '#description' => t('(zip)'),
+  );
+  $form['submit'] = array(
+    '#type'       => 'submit',
+    '#id'  =>'import-course-submit',
+    '#value'      => 'Submit',	
+  );
+  $form['loading'] = array(
+    '#type'       => 'item',
+    '#value'      => '<div class ="loding-image" style="display:none"></div>',	
+  );
+  return $form;
+}
+
+function import_user_picture_form_validate($form, &$form_state) {
+  
+  $path_info = pathinfo($_FILES['files']['name']['upload']);
+  $type = $path_info['extension'];  
+ 
+ if($_FILES['files']['name']['upload'] == ''){    
+    form_set_error('uplode',t('Please Upload file .'));
+  }
+  
+  if($type != 'zip'){ 
+    form_set_error('uplode',t('Upload file must be zip type .'));
+  }
+  
+  $size = $_FILES['files']['size']['upload'];
+  $size = round(($size/1024)/1024);
+  
+  if($size > 40){
+    form_set_error('upload',t('File size exceeds 40 MB Limit'));
+  }
+  
+}
+
+function import_user_picture_form_submit($form, &$form_state) {
+  
+  $path = file_directory_path().'/mypicture';
+  $correct_picture = array();
+  $worng_picture = array();
+  
+  if(!is_dir($path)){
+    mkdir($path);
+  }
+  
+  $path_info = pathinfo($_FILES['files']['name']['upload']);  
+  $type = $path_info['extension'];
+  
+  $filename = explode('.'.$type, $_FILES['files']['name']['upload']);  
+  $destination = $path.'/'.$_FILES['files']['name']['upload'];
+  
+  if($type == 'zip'){ 
+   
+    if(move_uploaded_file($_FILES['files']['tmp_name']['upload'], $destination)) {     
+      
+      $unzip_path = $path.'/'.'unzip_mypicture/';
+      
+      $common_picture_path = $path.'/userpicture/';
+      
+      if(!is_dir($path)){
+        mkdir($path);
+      }
+      
+      if(!is_dir($common_picture_path)){
+        mkdir($common_picture_path);
+      }
+      
+      
+      
+      $zip = new ZipArchive;      
+      $res = $zip->open($destination);
+      if ($res == TRUE) {      
+        $after_extract = $zip->extractTo($unzip_path);        
+        $zip->close();
+        if($after_extract == TRUE){
+          
+          if(file_exists($unzip_path.$filename[0])){
+            $dh = opendir($unzip_path.$filename[0]);      
+            while (($imageName = readdir($dh)) !== false) {
+              
+              $picture_info = pathinfo($imageName);
+              $picture_type = $picture_info['extension'];
+              
+              if(($picture_type == 'jpg') || ($picture_type == 'gif') || ($picture_type == 'png') || ($picture_type == 'jpeg')){
+              
+                if(strlen($imageName)>4){
+                  if(file_exists($unzip_path.$filename[0].'/'.$imageName)){
+                    if(copy($unzip_path.$filename[0].'/'.$imageName, $common_picture_path.$imageName)){                  
+                      unlink($unzip_path.$filename[0].'/'.$imageName);
+                      $correct_picture[] = $imageName;
+                    }
+                   }
+                }
+              }else{
+                if(strlen($imageName)>4){
+                  if(file_exists($unzip_path.$filename[0].'/'.$imageName)){
+                    unlink($unzip_path.$filename[0].'/'.$imageName);
+                    $worng_picture[] = $imageName;
+                  }
+                }                
+              }
+              $imageName = '';              
+              
+            }
+            closedir($dh); 
+            //drupal_set_message(t('Picture Uploaded Successfully.'));
+            
+            if(count($correct_picture)){
+              drupal_set_message(t('The following picture are uploaded successfully.'));
+              foreach($correct_picture as $key =>$value){
+                drupal_set_message(t($value));
+              }
+            }
+            
+            if(count($worng_picture)){
+              drupal_set_message(t('The following picture are not uploaded successfully.'));
+              foreach($worng_picture as $key =>$value){
+                drupal_set_message(t($value));
+              }
+            }
+            
+          }else{
+            drupal_set_message('The zip folder format is incorrect, contact administrator.');
+          }  
+        }
+      }
+      
+      if(file_exists($unzip_path.$filename[0]))
+        rmdir($unzip_path.$filename[0]);
+      if(file_exists($destination))  
+        unlink($destination);
+      //exit;
+    }
+  }else{
+    drupal_set_message(t('Upload file must be zip type .'));
+  
+  }
+  
+}
+
+
+function import_user_resume_form(){
+  drupal_add_js(drupal_get_path("module",lom)."/lom.js");
+  $form = array();
+  $form['#attributes'] = array('enctype' => 'multipart/form-data');
+  $form['upload'] = array(
+   '#type' => 'file',
+   '#title' => t('Upload User Resume'),
+   '#size' => 40,
+   '#description' => t('(zip)'),
+  );
+  $form['submit'] = array(
+    '#type'       => 'submit',
+    '#value'      => 'Submit',	
+  ); 
+  return $form;
+}
+
+function import_user_resume_form_validate($form, &$form_state) {
+  
+  $path_info = pathinfo($_FILES['files']['name']['upload']);
+  $type = $path_info['extension'];  
+ 
+ if($_FILES['files']['name']['upload'] == ''){    
+    form_set_error('uplode',t('Please Upload file .'));
+  }
+  
+  if($type != 'zip'){ 
+    form_set_error('uplode',t('Upload file must be zip type .'));
+  }
+  
+  $size = $_FILES['files']['size']['upload'];
+  $size = round(($size/1024)/1024);
+  
+  if($size > 40){
+    form_set_error('upload',t('File size exceeds 40 MB Limit'));
+  }
+  
+}
+
+function import_user_resume_form_submit($form, &$form_state) {
+  
+  $path = file_directory_path().'/myresume';
+  $worng_resume = array();
+  $correct_resume = array();
+  
+  if(!is_dir($path)){
+    mkdir($path);
+  }
+  
+  $path = file_directory_path().'/resume'; 
+  
+  if(!is_dir($path)){
+    mkdir($path);
+  }
+  
+  $path_info = pathinfo($_FILES['files']['name']['upload']);  
+  $type = $path_info['extension'];
+  
+  $filename = explode('.'.$type, $_FILES['files']['name']['upload']);  
+  $destination = $path.'/'.$_FILES['files']['name']['upload'];
+  
+  if($type == 'zip'){ 
+   
+    if(move_uploaded_file($_FILES['files']['tmp_name']['upload'], $destination)) {     
+      
+      $unzip_path = $path.'/'.'unzip_myresume/';
+      
+      $common_picture_path = $path.'/userresume/';
+      
+      if(!is_dir($path)){
+        mkdir($path);
+      }
+      
+      if(!is_dir($common_picture_path)){
+        mkdir($common_picture_path);
+      }
+      
+      
+      
+      $zip = new ZipArchive;      
+      $res = $zip->open($destination);
+      if ($res == TRUE) {      
+        $after_extract = $zip->extractTo($unzip_path);        
+        $zip->close();
+        if($after_extract == TRUE){
+          if(file_exists($unzip_path.$filename[0])){
+            $dh = opendir($unzip_path.$filename[0]);
+            
+            while (($imageName = readdir($dh)) !== false) {
+              $resume_info = pathinfo($imageName);
+              $resume_type = $resume_info['extension'];
+              
+               if(($resume_type == 'pdf') || ($resume_type == 'doc')){
+                if(strlen($imageName)>4){
+                  if(file_exists($unzip_path.$filename[0].'/'.$imageName)){
+                    if(copy($unzip_path.$filename[0].'/'.$imageName, $common_picture_path.$imageName)){
+                      $correct_resume[] = $imageName;
+                      unlink($unzip_path.$filename[0].'/'.$imageName);
+                    }
+                  }
+                }
+              }else{
+                if(strlen($imageName)>4){
+                  if(file_exists($unzip_path.$filename[0].'/'.$imageName)){
+                    unlink($unzip_path.$filename[0].'/'.$imageName);
+                    $worng_resume[] = $imageName;
+                  }
+                }                
+              }
+              $imageName = '';
+            }
+            closedir($dh);
+            
+            //drupal_set_message(t('Resume Uploaded Successfully.'));
+            if(count($correct_resume)){
+              drupal_set_message(t('The following resume are uploaded successfully.'));
+              foreach($correct_resume as $key =>$value){
+                drupal_set_message(t($value));
+              }
+            }
+            
+            if(count($worng_resume)){
+              drupal_set_message(t('The following resume are not uploaded successfully.'));
+              foreach($worng_resume as $key =>$value){
+                drupal_set_message(t($value));
+              }
+            } //exit;
+            
+          }else{
+            drupal_set_message('The zip folder format is incorrect, contact administrator.');
+          } 
+        }
+      }
+      
+      if(file_exists($unzip_path.$filename[0]))
+        rmdir($unzip_path.$filename[0]);
+      if(file_exists($destination))  
+        unlink($destination);
+    }
+  }else{
+    drupal_set_message(t('Upload file must be zip type .'));
+  
+  }
+  
+}
+
+

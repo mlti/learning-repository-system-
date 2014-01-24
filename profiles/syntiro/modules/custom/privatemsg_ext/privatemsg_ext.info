@@ -1,0 +1,9 @@
+; $Id: privatemsg_ext.info,v 1 2010/09/30 23:25:18 bala Exp $
+name = Private messages extension
+description = Private messages extension.
+package = Education Bridge
+core = 6.x
+; Information added by drupal.org packaging script on 2010-08-11
+version = "6.x-1.1"
+core = "6.x"
+

@@ -1,0 +1,6 @@
+; $Id: bridge.info,v 1.6 2007/06/08 05:50:54 muhd Exp $
+name = bridge
+description = Enables for home page display.
+package = Education Bridge
+version = VERSION
+core = 6.x

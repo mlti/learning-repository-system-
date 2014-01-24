@@ -1,0 +1,7 @@
+ <?php
+// $Id: eb_campus.install, 2012/04/16 6:04:pm jaffar Exp $
+/**
+ * @file eb_campus.install
+ * Contains install and update functions for campus.
+ */
+ 

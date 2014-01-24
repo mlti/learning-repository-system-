@@ -1,0 +1,6 @@
+; $Id: eb_comments.info,v 1 2011/03/23 Beschi Exp $
+name = EB Comments
+description = Custom comments page and menu callback creation for Content Types
+package = Education Bridge
+core = "6.x"
+version = "6.x-1.0"

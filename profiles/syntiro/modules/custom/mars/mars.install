@@ -1,0 +1,150 @@
+<?php
+// $Id: views.install,v 1.50.2.4 2010/06/16 20:37:29 merlinofchaos Exp $
+/**
+ * @file mars.install
+ * Contains install and update functions for Views.
+ */
+
+
+/**
+*@file
+*Install file for curriculum module
+*/
+
+//tablename_schema()
+function mars_schema() {
+ $schema = array();
+
+ $schema['mars'] = array(
+   'description' => t('Mars table with Topic mid, tid, nid, type, title, body, link_path, created, weight, search_format'),
+   'fields' => array(
+     'mid' => array(
+       'description' => t('Mars id'),
+       'type' => 'serial',
+       'unsigned' => TRUE,
+       'not null' => TRUE,
+     ),
+     'tid' => array(
+       'description' => t('Topic id'),
+       'type' => 'int',
+       'unsigned' => TRUE,
+       'not null' => TRUE,
+     ),
+     'nid' => array(
+       'description' => t('Node id'),
+       'type' => 'int',
+       'unsigned' => TRUE,
+       'not null' => TRUE,
+     ),
+     'type' => array(
+       'description' => t('Type'),
+       'type' => 'text',
+       'not null' => TRUE,
+     ),
+    'title' => array(
+       'description' => t('Title'),
+       'type' => 'text',
+       'not null' => TRUE,
+     ),
+     'body' => array(
+       'description' => t('Body'),
+       'type' => 'text',
+       'not null' => TRUE,
+     ),
+     'link_path' => array(
+       'description' => t('Link Path'),
+       'type' => 'text',
+       'not null' => TRUE,
+     ),
+     'created' => array(
+       'description' => t('added date time - timestamp'),
+       'type' => 'int',
+       'unsigned' => TRUE,
+       'not null' => TRUE,
+     ),
+     'weight' => array(
+       'description' => t('Weight'),
+       'type' => 'int',
+       'unsigned' => TRUE,
+       'not null' => TRUE,
+     ),
+     'search_format' => array(
+       'description' => t('Search format'),
+       'type' => 'int',
+       'unsigned' => TRUE,
+       'not null' => TRUE,
+     ),
+   ),
+   'primary key' => array('mid'),
+ );
+
+ return $schema;
+}
+
+
+//tablename_schema()
+function mars_statistics_schema() {
+ $schema = array();
+
+ $schema['mars_statistics'] = array(
+   'description' => t('Mars Statistics table with Topic ms_id, nid, uid, type, access_time'),
+   'fields' => array(
+     'ms_id' => array(
+       'description' => t('Mars id'),
+       'type' => 'serial',
+       'unsigned' => TRUE,
+       'not null' => TRUE,
+     ),
+     'nid' => array(
+       'description' => t('Node id'),
+       'type' => 'int',
+       'unsigned' => TRUE,
+       'not null' => TRUE,
+     ),
+     'uid' => array(
+       'description' => t('User id'),
+       'type' => 'int',
+       'unsigned' => TRUE,
+       'not null' => TRUE,
+     ),
+     'access_time' => array(
+       'description' => t('added date time - timestamp'),
+       'type' => 'int',
+       'unsigned' => TRUE,
+       'not null' => TRUE,
+     ),
+   ),
+   'primary key' => array('ms_id'),
+ );
+
+ return $schema;
+}
+ /**
+ * Update a site to Drupal 6! Contains a bit of special code to detect
+ * Mars Module Updates
+ */
+function mars_update_6000() {
+  $ret = array();
+  // Set permission for My mars access to site admin
+  $result = db_result(db_query("SELECT perm FROM {permission} WHERE rid=%d", 5));
+  $check = strpos($result, 'access mars');
+  if ($check != TRUE) {
+    $result  = $result .', access mars';
+    db_query("UPDATE {permission} SET perm = '%s' WHERE rid = %d", $result, 5);
+  }
+
+  return $ret;
+}
+
+
+//hook_install()
+function mars_install() {
+ drupal_install_schema('mars');
+ drupal_install_schema('mars_statistics');
+}
+
+//hook_uninstall()
+function mars_uninstall() {
+ drupal_uninstall_schema('mars');
+ drupal_uninstall_schema('mars_statistics');
+}

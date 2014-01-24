@@ -1,0 +1,7 @@
+; $Id: eb_user_points.info,v 1.0 2012/06/25 05:51:00 sarav Exp $
+name = EB User Points
+description = Enables Userpoints functionality.
+dependencies[] = userpoints 
+package = Education Bridge
+version = "6.x-1.1"
+core = 6.x

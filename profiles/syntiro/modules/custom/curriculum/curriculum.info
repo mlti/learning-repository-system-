@@ -1,0 +1,6 @@
+; $Id: forum.info,v 1.6 2007/06/08 05:50:54 dries Exp $
+name = curriculum
+description =Curriculum Modules.
+package = Education Bridge
+version = VERSION
+core = 6.x

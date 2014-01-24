@@ -1,0 +1,532 @@
+<?php
+// $Id$
+/**
+ * @file: Bookmark module: Enables nodes and external linsk to be bookmarked
+ */
+require_once("bookmark.inc");
+
+//hook_init implementation
+function bookmark_init() {
+  global $base_url, $user;
+
+  if (array_key_exists('4', $user->roles)) {
+    $assigned_role = 'student';
+  }
+  else{
+    $assigned_role = '';
+  }
+
+  drupal_add_js(array(
+    'bookmark' => array(
+      'basepath' => $base_url,
+      'roles' => $assigned_role,
+      'loadingImg' => $base_url . "/" . drupal_get_path("module", "bookmark") . "/" . "loading.gif",
+    )
+  ), 'setting');
+
+  drupal_add_css(drupal_get_path('module', 'bookmark') . '/bookmark.css');
+  if (is_numeric(arg(1)) && (arg(0) == 'node' || arg(0) == "review_listing" )) {
+    $node = node_load(arg(1));
+
+    if ($node->type == 'asset' ||  $node->type == 'bead' ||  $node->type == 'quiz'  ||  $node->type == 'discussion' ||  $node->type == 'curriculum') {
+      drupal_add_js(drupal_get_path('module', 'bookmark') .'/bookmark.js');
+    }
+  }
+}
+
+/**
+ * hook_perm() implementation
+ * Addind a permission row for bookmark module in admin/user/permissions
+ */
+function bookmark_perm() {
+  return array('access bookmark', 'administer bookmark');
+}
+
+/**
+ * hook_menu() Implementation
+ * This will add the functions to the corresponding links
+ */
+function bookmark_menu() {
+  $items = array();
+
+  $items['bookmark/add/%node'] = array(
+    'title' => 'Bookmark',
+    'description' => 'Add bookmark',
+    'page callback' => 'bookmark_add_process',
+    'access arguments' => array('access bookmark'),
+    'type' => MENU_CALLBACK,
+  );
+
+  //deleting in ajax way - from any node
+  $items['bookmark/remove/%bookmark'] = array(
+    'title' => 'Bookmark',
+    'description' => 'Delete bookmark',
+    'page callback' => 'bookmark_remove_process',
+    'access arguments' => array('access bookmark'),
+    'type' => MENU_CALLBACK,
+  );
+
+  //remove - to form - confirming remove - from mybookmarks page
+  $items['bookmark/remove-confirm/%bookmark'] = array(
+    'description' => 'Remove bookmark',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('remove_confirmation_form'),
+    'access arguments' => array('access bookmark'),
+    'type' => MENU_CALLBACK,
+  );
+
+  //this is a special menu callback - to store the google/federated link
+  $items['bookmark/add/external'] = array(
+    'title' => 'Bookmark',
+    'description' => 'Add bookmark',
+    'page callback' => 'bookmark_add_process_external',
+    'access arguments' => array('access bookmark'),
+    'type' => MENU_CALLBACK,
+  );
+
+  $items['bridge/mybookmarks'] = array(
+    'title' => 'Bookmarks',
+    'description' => 'Bookmarks view for users',
+    'page callback' => 'bookmarks_listing',
+    'access arguments' => array('access bookmark'),
+    'type' => MENU_CALLBACK,
+    'weight' => -8,
+  );
+
+
+  //Report page for adin
+  $items['admin/reports/bookmarks'] = array(
+    'title' => 'Bookmarks Statistics',
+    'page callback' => 'bookmarks_statistcis_page',
+    'access arguments' => array('administer bookmark'),
+  );
+
+  // Bookmark block - ajax load
+  $items['bookmarks/block'] = array(
+    'page callback' => 'bookmark_block_ajax',
+    'access arguments' => array('access bookmark'),
+    'file' => 'bookmark.inc',
+    'type' => MENU_CALLBACK,
+  );
+  // Bookmark listing - ajax load
+  $items['bookmarks/listing'] = array(
+    'page callback' => 'bookmarks_listing_ajax',
+    'access arguments' => array('access bookmark'),
+    'type' => MENU_CALLBACK,
+    'file' => 'bookmark.inc',
+  );
+
+  return $items;
+}
+
+/**
+ * Implementation of hook_theme().
+ */
+function bookmark_theme() {
+  return array(
+    'bookmarks_listing' => array(
+      'template' => 'bookmarks_listing',
+      'arguments' => array('results' => NULL),
+    ),
+    'external_teaser' => array(
+      'template' => 'external-teaser',
+      'arguments' => array('results' => NULL),
+    ),
+  );
+}
+
+/**
+ * hook_form_alter() implementation
+ * Adding an option to the create content - enable or disable bookmark option
+ */
+function bookmark_form_alter(&$form, &$form_state, $form_id) {
+  switch ($form_id) {
+    case 'node_type_form':
+      if (isset($form['identity']['type'])) {
+        $form['bookmark_settings'] = array(
+          '#type' => 'fieldset',
+          '#title' => t('Bookmark Settings'),
+          '#collapsible' => TRUE,
+          '#collapsed' => FALSE,
+          '#description' => t('To allow bookmark this type, enable the checkbox below.'),
+        );
+        $form['bookmark_settings']['bookmark'] = array(
+          '#type' => 'checkbox',
+          '#title' => t('Enable Bookmark for this type.'),
+          '#default_value' => variable_get('bookmark_'. $form['#node_type']->type, 0),
+          '#return_value' => 1,
+        );
+        $form['#submit'][] = 'bookmark_node_type_form_submit';
+      }
+    break;
+    case 'remove_confirmation_form':
+      // Div structure is for recommedation confirm delete
+      $form['description']['#prefix'] = '<div class="result"><div class="confirm-text">';
+      $form['description']['#suffix'] = '</div></div>';
+      $form['actions']['#prefix']= '<div class="button-main">';
+      $form['actions']['#suffix'] = '</div>';
+      $form['actions']['cancel']['#prefix'] = '<span class="btn-center">';
+      $form['actions']['cancel']['#suffix'] = '</span>';
+      break;
+  }
+}
+
+
+/**
+ * Create the Field Items For Bookmark Settings in Database
+ */
+function bookmark_node_type_form_submit($form, &$form_state) {
+  if ($form_state['values']['bookmark'] == 1) {
+    variable_set('bookmark_'. $form_state['values']['type'], 1);
+  }
+  else {
+    variable_set('bookmark_'. $form_state['values']['type'], 0);
+  }
+}
+
+/**
+ * hook_block() implementation
+ * Displaying the bookmarks of the current user - in block - latest 3
+ */
+function bookmark_block($op = 'list', $delta = 0, $edit = array()) {
+  if ($op == 'list') {
+    $block = array();
+    $block[0]['info'] = t('My Bookmarks');
+    return $block;
+  }
+  elseif ($op == 'view') {
+    switch ($delta) {
+      case 0:
+        $node = function_exists("custom_node_load") ? custom_node_load() : NULL;
+        if (($node->type == 'curriculum' || ($node->type == 'asset' && arg(3) == 'html') || ($node->type == 'bead' && arg(3) == 'html')) && arg(2) == 'content' && user_access('access bookmark')) {
+          $block['subject'] = 'My Bookmarks';
+          $block['content'] = drupal_get_form("bookmark_block_form");
+        }
+      break;
+    }
+    return $block;
+  }
+}
+
+/**
+ * Bookmarks listing page - v2 - for bridge/mybookmarks
+ * Displayign using the template file - bookmarks_page2.tpl.php
+ */
+function bookmarks_listing($mobile_flag = FALSE, $scroll_count = FALSE, $tcount_flag = FALSE) {
+
+  global $base_url, $user;
+  $total_count = "";
+  //set the current url to be redirected after delete
+  set_session_url();
+  //inclde the required js files
+  $module_path = drupal_get_path('module', 'bookmark');
+  drupal_add_js($module_path . '/bookmark.js');
+  if (arg(0) == 'bridge' && arg(1) != "mybookmarks") {
+    drupal_add_js(array('bridge_basket' => TRUE), 'setting');
+  }
+  if ($_REQUEST['del_title']) {
+    drupal_set_message('The Bookmark has been Removed.');
+  }
+  
+  //$uid = $user->uid;
+  $i=1;
+  $limit = 5;
+  //if there is an argument set in the url then make the condition according to that
+  if(!$mobile_flag) {
+    
+  
+    $bookmark_page = isset($_GET['page']) ? $_GET['page'] : implode(',', array_fill(0, BOOKMARK_LISTING_PAGER_ID + 1, 0));
+    $cache_ouput = cache_get("bookmark_listing:uid:" . $user->uid . ":page:" . $bookmark_page, "cache_eb");
+    if ($cache_ouput->data) {
+      return $cache_ouput->data;
+    }
+    else {
+      // check playlist available in playlist basket if available then only add dragable links to listing
+      if (function_exists("playlist_query")) {
+        $playlist_arguments = array('curriculum', $user->uid, $user->uid, $user->uid, $user->uid);
+        $playlist_count = playlist_query(NULL, NULL, $playlist_arguments, TRUE);
+      }
+      
+      //check if user have rights to drag and drop to playlist or asset
+      $drop_tooltip = FALSE;
+      if (user_access("create curriculum content") || user_access("create asset content")) {
+        $drop_tooltip = TRUE;
+      }
+      
+      $total_count = "SELECT COUNT(*) FROM {bookmark} WHERE uid = %d";
+      $output = pager_query("SELECT * FROM {bookmark} WHERE uid = %d ORDER BY timestamp DESC", $limit, BOOKMARK_LISTING_PAGER_ID, $total_count, $user->uid);
+    }
+  }
+  else {
+    $mobile_bookmark_page = ($scroll_count) ? $scroll_count : 0;
+     // get recommend cache
+    $cache_ouput = cache_get("bookmark_mobile:uid:" . $user->uid . ":page:" . $mobile_bookmark_page, "cache_eb");
+    if ($cache_ouput->data) {
+      return $cache_ouput->data;
+    }
+    $start_limit = $scroll_count * 10;
+    $limit_query = " LIMIT ". $start_limit .", 10";
+    $output = db_query("SELECT * FROM {bookmark} WHERE uid = %d ORDER BY timestamp DESC". $limit_query ,  $user->uid);
+    if($tcount_flag == TRUE) {
+      $total_count = db_result(db_query("SELECT COUNT(*) FROM {bookmark} WHERE uid = %d ORDER BY timestamp DESC", $user->uid));
+    }
+  }
+  if (db_affected_rows()) {
+    while ($output1 = db_fetch_object($output)) {
+      $output2['fields']['bm_title']= 'Bookmarks';
+      $bmobj = new bookmark($output1->asset, $output1->title, $output1->type, $output1->description);
+      $output2['fields']['id']= $output1->id;
+      $output2['fields']['asset']= $output1->asset;
+      $output2['fields']['type']= $output1->type;
+      if (function_exists("drag_drop_make_link")) {
+        if ($playlist_count == 0 || !$drop_tooltip) {
+          $output2['fields']['ext_title']= drag_drop_make_link($output1->asset, strip_tags($bmobj->ext_title), $output1->type, $output1->description, $bmobj->ext_title);
+        }
+        else {
+          $output2['fields']['ext_title']= drag_drop_make_link($output1->asset, strip_tags($bmobj->ext_title), $output1->type, $output1->description, 'Drag to Drop into your playlists', 'bm-links');
+        }
+      }
+
+     // $output2['fields']['body_content']= $output1->description;
+      $output2['fields']['link']= $bmobj->link;
+      $output2['fields']['picture']= $bmobj->thumb;
+
+      //$output2['fields']['recommend'] = $bmobj->recommend_url;
+      $output2['fields']['delete'] = l(theme_image(drupal_get_path('theme', 'educationhub') . "/images/icons/delete_icon.png", 'Delete bookmark ' . $output1->title, 'Delete'), $base_url . "/bookmark/remove-confirm/" . $output1->id, array('attributes' => array('class' => 'popups-form-reload', 'on-popups-options' => '{hijackDestination:"FALSE"}', 'title' => 'Delete'), 'html' => TRUE));
+      //If created by siteadmin - do not display author - display source if not null
+      $output2['fields']['by_text'] = $bmobj->by_text;
+      $output2['fields']['author'] = $bmobj->author;
+      // For removing whitespaces in teaser  is in eb_others_common.inc
+      if (function_exists('removing_whitespace')) {
+        $output2['fields']['body_content'] = removing_whitespace(node_teaser($bmobj->desc, NULL, NULL));
+      }
+      if ($bmobj->institute_nid && function_exists("institution_flag")) {
+        $output2['fields']['flag_content'] = NULL;
+        $output2['fields']['flag_content'] = institution_flag($bmobj->institute_nid);
+      }
+
+      //$output2['fields']['comments'] = $bmobj->comments;
+      $output2['fields']['source'] = $bmobj->source;
+      $output2['fields']['category'] = $bmobj->category;
+      if (function_exists("drag_drop_make_link")) {
+        if ($playlist_count == 0 || !$drop_tooltip) {
+          $output2['fields']['title'] = drag_drop_make_link($output1->asset, $bmobj->title, $output1->type, $output1->description,  NULL, 'float-left');
+        }
+        else {
+          $output2['fields']['title'] = drag_drop_make_link($output1->asset, $bmobj->title, $output1->type, $output1->description, 'Drag to Drop into your playlists', 'bm-links float-left');
+        }
+      }
+      $output2['fields']['links'] = NULL;
+      if($output2['fields']['type'] == 'asset' || $output2['fields']['type'] == 'quiz' || $output2['fields']['type'] == 'curriculum'  || $output2['fields']['type'] == 'bead'){
+       // if (db_result(db_query("SELECT field_format_value FROM {content_field_format} WHERE nid=%d", $mars_result->nid)) != "VIDEO" && )
+        $output2['fields']['links'] = l('More', 'node/' . $output1->asset,  array('attributes' => array('nodetype' => $output1->type, 'title' => 'Click to Preview', 'tabindex' => "0")));
+      }
+      elseif ($output2['fields']['type'] == 'federated'){
+        $output2['fields']['links'] = l('More', $output1->asset,  array('attributes' => array('nodetype' => $output1->type, 'node_title' => $output1->title, 'title' => 'Click to Preview', 'tabindex' => "0")));
+      }
+      //check the average voting - if zero then dont display the stars
+      $output2['fields']['fivestar_widget'] =  $bmobj->fivestar_widget;
+
+      if ($output2['fields']['type'] == 'asset') {
+        $result[$i]['body'] = theme('asset_teaser', $output2);
+      }
+      elseif ($output2['fields']['type'] == 'bead') {
+        $output2['fields']['stringable_beads_link'] = $bmobj->stringable_beads_link;
+        $result[$i]['body'] = theme('bead_teaser', $output2);
+      }
+      elseif ($output2['fields']['type'] == 'curriculum') {
+        $result[$i]['body'] = theme('curriculum_teaser', $output2);
+      }
+      elseif  ($output2['fields']['type'] == 'federated'){
+        $result[$i]['body'] = theme('external_teaser', $output2);
+      }
+      else {
+        $result[$i]['body'] = theme('cck_teaser', $output2);
+      }
+
+     //check the mobile access
+     if($mobile_flag){
+       $result_mobile[$i] = $output2;
+     }
+
+      $i++;
+    }
+  }
+  else {
+  //check the mobile access
+    if($mobile_flag) {
+      $result_mobile['bookmark_null'] = 'You have no Bookmarks.';
+    }
+    else {
+      $result['bookmark_null'] = 'You have no Bookmarks.';
+    }
+  }
+  //Check the mobile access
+  if($mobile_flag) {
+    if($tcount_flag == TRUE) {
+      $result_mobile['total_count'] = $total_count;
+    }
+    //set the asset listing cache
+    cache_set("bookmark_mobile:uid:" . $user->uid . ":page:" . $mobile_bookmark_page, $result_mobile, "cache_eb");
+    return $result_mobile;
+  }
+
+  if(!$mobile_flag) {
+    $final_Ouput = theme('bookmarks_listing', $result);
+    cache_set("bookmark_listing:uid:" . $user->uid . ":page:" . $bookmark_page, $final_Ouput, "cache_eb");
+   return $final_Ouput;
+  }
+}
+
+function bookmark_preprocess_bookmarks_listing(&$vars) {
+  $vars['bookmark_result'] = $vars['results'];
+  $vars['pager'] = theme('pager', NULL, $limit, BOOKMARK_LISTING_PAGER_ID);
+}
+
+//This class will set the link to a node/external link, with type image
+class bookmark {
+    var $link, $thumb, $recommend_url, $by_text, $author, $comments, $desc, $source, $stringable_beads_link;
+
+    function __construct($asset, $title, $type, $desc='') {
+      global $base_url;
+        //check if this is a external link of asset link
+        if ($type == "google" || $type == "federated") {
+          $link = $asset;
+          //$title = //truncate_utf8($title, 40, $wordsafe = FALSE, $dots = TRUE);
+          $options = array(
+            'html' => TRUE,
+            'attributes' => array(
+              'target' => '_blank'
+            )
+          );
+          if (function_exists("teaser_nodes")) {
+            $this->ext_title = l(teaser_nodes($title), $link, array('attributes'=> array('title' => 'Click to view content')));
+          }
+          $this->by_text = "";
+          $this->author = "";
+          $this->desc = $desc;
+          $this->comments = "";
+          $this->recommend_url =  l(theme_image(drupal_get_path('theme', 'edubridge_fluid') . "/images/recommend.png", NULL, 'Recommend'), $base_url . "/recommend", array('attributes' => array('title' => 'Recommend'),'html' => TRUE, 'query' => 'type=' . $type . '&link=' . $link . '&title=' . $title . '&desc=' . $desc));//"?type=$type&link=$link&title=$title&desc=$desc";
+          if (strpos($asset, 'curriki.org') !== false) {
+             $this->thumb = l (theme('imagecache', 'dis_rev_com_image2', '/' . drupal_get_path('theme', 'educationhub') . '/images/icons/curriki_1.jpg'),  $link, $options);
+           }
+           elseif (strpos($asset, 'merlot.org') !== false) {
+             $this->thumb = l (theme('imagecache', 'dis_rev_com_image2', '/' . drupal_get_path('theme', 'educationhub') . '/images/icons/merlot_1.jpg'),  $link, $options);
+           }
+           elseif (strpos($asset, 'oercommons.org') !== false) {
+             $this->thumb = l(theme('imagecache', 'dis_rev_com_image2', '/' . drupal_get_path('theme', 'educationhub') . '/images/icons/oercommons.jpg'), $link, $options);
+           }
+           elseif (strpos($asset, 'free.ed.gov') !== false) {
+             $this->thumb = l (theme('imagecache', 'dis_rev_com_image2', '/' . drupal_get_path('theme', 'educationhub') . '/images/icons/free-ed_1.jpg'),  $link, $options);
+           }
+          elseif (strpos($asset, 'cnx.org') !== false) {
+             $this->thumb = l (theme('imagecache', 'dis_rev_com_image2', '/' . drupal_get_path('theme', 'educationhub') . '/images/icons/cnx.jpg'),  $link, $options);
+           }
+           elseif (strpos($asset, 'khanacademy.org') !== false) {
+             $this->thumb = l(theme('imagecache', 'dis_rev_com_image2', '/' . drupal_get_path('theme', 'educationhub') . '/images/icons/khanacademy.jpg'), $link, $options);
+           }
+           else {
+             $this->thumb = l (theme('imagecache', 'dis_rev_com_image2', '/' . drupal_get_path('theme', 'educationhub') . '/images/icons/nodoc.jpg'),  $link, $options);
+           }
+          $this->source = "";
+        }
+        else {
+          //set the default node/id as path, if path alias is enabled (using path module) - change to that path
+          $this->recommend_url =  l(theme_image(drupal_get_path('theme', 'edubridge_fluid') . "/images/recommend.png", NULL, 'Recommend'), $base_url . "/recommend/" . $asset, array('attributes' => array('title' => 'Recommened'),'html' => TRUE)); //"/$asset";
+          $link = "node/" . $asset;
+          $nodeobj = node_load($asset);
+          if ($nodeobj->taxonomy) {
+            $taxonomy = end($nodeobj->taxonomy);
+          }
+          else {
+            $taxonomy='';
+          }
+          if ($nodeobj->path) {
+            $link = $nodeobj->path;
+          }
+          $this->title = l(teaser_nodes($nodeobj->title), 'node/' . $nodeobj->nid, array('attributes'=> array('title' => 'Click to view content')));
+          //$title = truncate_utf8($nodeobj->title, 40, $wordsafe = FALSE, $dots = TRUE);
+          $options = array('html' => TRUE);
+          $this->by_text = "By ";
+          $this->author = function_exists("create_eduauthor") ? create_eduauthor($nodeobj->uid) : NULL;
+          $this->institute_nid =  NULL;
+          $this->institute_nid = $nodeobj->field_institute[0]['nid'];
+          // community interest group is group node
+          if ($nodeobj->type == "community_interest_group") {
+             // node_teaser() function is to give teaser of the specific node
+            $teaser = function_exists("node_teaser") ? node_teaser($node->og_description, isset($node->format) ? $node->format : NULL) : NULL;
+          }
+          else {
+            $teaser = $nodeobj->teaser;
+          }
+          // For removing whitespaces in teaser is in eb_others_common.inc
+          $this->desc =  function_exists('removing_whitespace') ? removing_whitespace($teaser) : NULL;
+
+
+          $url = function_exists("searchimagefiles") ? searchimagefiles($nodeobj->type, $nodeobj->field_format[0]['value']) : NULL; //searchimagefiles() is in eb_search.inc
+          //define the the thumb image
+          if ($type == 'asset') {
+            if (function_exists("teaser_nodes")) {
+              $this->title = l(teaser_nodes($nodeobj->title), 'node/' . $nodeobj->nid, array('attributes'=> array('title' => 'Click to view content')));
+            }
+
+            if ($nodeobj->taxonomy) {
+              $category = array();
+              foreach ($nodeobj->taxonomy as $value) {
+                if ($value->vid == ASSET_CATEGORY) {
+                  $category[] = $value->name;
+                }
+              }
+            }
+            $this->category = ($category)?implode(', ',$category):'';
+
+            $format = $nodeobj->field_format[0]['value'];
+            $this->desc = strip_tags($nodeobj->teaser);
+            if (function_exists("teaser_nodes")) {
+              $this->thumb = l(teaser_nodes(NULL, 'dis_rev_com_image2', $url), $link, $options);
+            }
+          }
+          else {
+            if (function_exists("teaser_nodes")) {
+              $this->thumb = l(teaser_nodes(NULL, 'dis_rev_com_image2', $url), $link, $options);
+            }
+            $this->source = "";
+          }
+
+        }
+        //for stringable beads link
+        if($type == 'bead') {
+          if (function_exists("teaser_nodes")) {
+            $this->thumb = l(teaser_nodes(NULL, 'dis_rev_com_image2', $url) . '<span class="bead-small-icon"><img s src="' . $base_url . '/' . drupal_get_path('theme', 'educationhub') . '/images/icons/bead_icon_small.png"/></span>', $link, $options);
+          }
+          $this->stringable_beads_link = function_exists("beads_stringable_link") ? beads_stringable_link($asset, $nodeobj->field_bead_seq_no[0]['value'], $nodeobj->field_source_id[0]['value']) : NULL;
+          $this->source = $nodeobj->field_source[0]['value'];
+          $this->by_text = '';
+          $this->author = '';
+          if ($nodeobj->field_source[0]['value']) {
+            $this->by_text = 'Source ';
+            $this->author = $nodeobj->field_source[0]['value'];
+          }
+
+        }
+        $this->fivestar_widget = NULL;
+        //check the average voting - if zero then dont display the stars
+        if (module_exists('fivestar')) {
+          $avg_vote = fivestar_get_votes('node', $nodeobj->nid);
+          if (isset($avg_vote['average']['value']) > 0 && ($nodeobj->field_published[0]['value'] == 1 || ($nodeobj->status == 1 && $nodeobj->type == 'bead')) ) {
+            $this->fivestar_widget = theme('fivestar_static', $avg_vote['average']['value']);
+          }
+        }
+
+        $this->link = '<div class="bm-links float-left" content_asset="'. $asset .'" content_type="'. $type .'" content_title="'. $title .'" content_desc="' . $desc .'">' . l(t($title), $link, array('attributes' => array('title' => 'Click to preview'))) . '</div>';
+    }
+}
+
+
+/**
+ * Override or insert PHPTemplate variables into the templates.
+ */
+function bookmark_preprocess_page(&$vars) {
+  drupal_add_js(drupal_get_path('module', 'bookmark') .'/bookmark.js');
+  $vars['scripts']  = drupal_get_js();
+}

@@ -1,0 +1,3 @@
+<?php
+
+include_once('eb_others_feature.features.inc');

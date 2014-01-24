@@ -1,0 +1,150 @@
+== Description ==
+
+
+This describe which are the contributed module we have changed.
+
+
+  1) voting api
+     
+  2) Jquery_update/replace/jquery.js Line no: 1060, 1061   By Saravanan
+     i. changing for Jquery Clash in IE8. When loading the page Autocomplete div get top, left as 0.
+     -	if (set)
+     +  if (set && value != 'NaNpx')
+			elem[ name ] = value;
+
+  3) demo and demo_reset module weight changed to -1 (autoclean, apache solr indexed before autoclean): demo instance only
+  
+  
+Added on 17/04/2012 by Saravana
+
+Contributed Changes
+Module name : views_services 2.X
+  Convert Json object to PHP Array in views.get, node.save and its access callback services because they declare argument as Array.
+  1. views_service_get() in views_services.inc Line no: 30
+  2. node_service_save() in node_services.inc Line no: 126-128
+  3. node_service_save_access() in node_services.inc Line no: 211-213
+  
+  Replace the drupal_execute() with node_save() in node.save services. Because drupal_execute cause errors like while we create a asset/playlist some values are automatically got set. Published, Coauthor, Reviewer.
+  1. node_service_save() in node_services.inc Line no: 180
+
+
+Autocomplete Fields in Educatiohub
+
+  Recommend Form - /messages/user-name-autocomplete/% - Private Message Module
+  Private Message - /messages/user-name-autocomplete/% - Private Message Module
+  
+  Assignment Form - /assignment/users-name-autocomplete/% - Written in assignment.module
+  
+  In Asset, Playlist Creation page.
+  Coauthor Autocomplete - autocomplete/users/% (coauthor) Written in eb_others.module
+  Reviewer Autocomplete - autocomplete/users/% (reviewer) Written in eb_others.module
+  Author Autocomplete - Default User Reference autocomplete CCK field.
+  
+  
+Drupal Core module  Added on 9/04/2012 by Arun
+
+  User.module 
+  
+  For profile edit page while change user image will clear image cache
+  function user_validate_picture(&$form, &$form_state) {
+    ....
+    
+     /* Patch start*/   
+    // patch applied for creating new image, to over come the browser cache for use image
+    //http://drupal.org/files/issues/drupal-user-module-image-time-cache-filename-D6_0.patch
+    //http://drupal.org/node/668058
+    /*Orginal line start*/
+      //$destination = variable_get('user_picture_path', 'pictures') . '/picture-'. $form['#uid'] .'.'. $info['extension'];
+    /*Orginal line stop*/
+    
+    $image_time = time();
+    $destination = variable_get('user_picture_path', 'pictures') . '/picture-'. $form['#uid'] . '-' . $image_time . '.' . $info['extension'];
+    /* Patch stop*/   
+    
+    ....
+  }
+  
+Flowplayer module Added on 14/05/2012 by Jaffar
+
+  Video format asset view page popups will hide behind the flowplayer 
+  
+  flowplayer.js   Line no: 87
+  
+  $(selector + ':not(.flowplayer-processed)').addClass('flowplayer-processed').flowplayer({src: Drupal.settings.basePath + Drupal.settings.flowplayerSwf, wmode: 'opaque'}, config);
+  
+  References: http://drupal.org/node/529036
+  
+  
+Services   By jaffar
+  
+  // comment retrive with image, first name and lastname 
+  resources/comment_resources.inc
+  
+  function _comment_resource_retrieve($cid) {
++    $comment_load = _comment_load($cid);
++    // include hook_comment_services_load() functions to load extra content to comment
++    module_invoke_all('comment_services_load', 'load', $comment_load);
++    return $comment_load;
+-    return _comment_load($cid);
+  }
+  
+  // load comments for the node
+   resources/node_resources.inc
+  function _node_resource_load_node_comments($nid, $count, $start) {
+  $comments = array();
+  $limit = ((int)$count > 0 ? ' LIMIT ' . (int)$start . ', ' . (int)$count . ' ' : '');
+
+  $result = db_query("SELECT cid FROM {comments} WHERE nid = %d AND status = %d ORDER BY thread DESC" . $limit, $nid, COMMENT_PUBLISHED);
+  while ($comment = db_fetch_array($result)) {
+ -  $comments[] = _comment_load($comment['cid']);
+ +   $comment_load = _comment_load($comment['cid']);
+ +   // include hook_comment_services_load() functions to load extra content to comment
+ +   module_invoke_all('comment_services', 'load', $comment_load);
+ +   $comments[] = $comment_load;
+  }
+
+  return $comments;
+}
+
+
+Contributed autologout module added on 8/August/2012  By Jaffar
+
+  Services 3.x, when autologout executed we get the login page HTML as output in Service.
+
+ autologout.module
+
+function autologout_init(){
+..
+..
+  if (arg(1) == "eb_mobile") {
+    return;
+  }
+  elseif ( $redirect_url != '' ) {
+    drupal_set_message(filter_xss_admin(_autologout_local_settings('logout_message')) , 'error');
+    drupal_goto($redirect_url);
+  }
+  else {
+    drupal_goto('autologout/logout', drupal_get_destination());
+  }
+..
+..
+}
+
+
+
+Resolved  - By jaffar
+1) Quiz Mobile Services - quiz.module, quiz_question.module
+2)  Quiz Module - Change and Hide message content for Quiz Creation page and Status message after creation Quiz respectively. 
+     i. quiz.module quiz_form() Line no: 937
+     ii. quiz.module quiz_insert() Line no: 633
+		 
+
+services :: => Arunkumar
+path : sites/all/modules/contributed/services
+filename: services.runtime.inc
+::Not displaying error message
+line number :: 	31 and  32
+public function __construct($message, $code = 0, $data = NULL) {
+parent::__construct($message, $code);
+-$this->data = $data;  orginal line
++$this->data = $message; 

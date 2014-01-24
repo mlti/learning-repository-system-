@@ -1,0 +1,133 @@
+<?php
+
+/**
+ * @file
+ * Install, update, and uninstall functions for the userpoints_login menu module.
+ */
+
+/**
+ * Implementation of hook_install().
+ */
+function eb_user_points_install() {
+  drupal_install_schema('eb_user_points');
+}
+
+/**
+ * Implementation of hook_uninstall().
+ */
+function eb_user_points_uninstall() {
+  drupal_uninstall_schema('eb_user_points');
+}
+
+/**
+ * Implementation of hook_schema().
+ */
+function eb_user_points_schema() {
+  $schema = array();
+  $schema['eb_user_points'] = array(
+    'description' => 'Records userpoints flood',
+    'fields' => array(
+        'id' => array(
+        'description' => t('Primary Key: serial No'),
+        'type'        => 'serial',
+        'not null'    => TRUE
+      ), 
+      'uid' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'default' => NULL,
+        'not null' => TRUE,
+      ),
+      'author' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'default' => 1,
+      ),
+      'type' => array(
+        'description' => 'The {node_type}.type of this node.',
+        'type' => 'varchar',
+        'length' => 32,
+        'not null' => TRUE,
+        'default' => ''
+      ),
+      'nid' => array(
+        'description' => 'The {node}.nid this record affects.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0
+      ),
+      'cid' => array(
+        'description' => 'Comment ID..',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0
+      ),
+      'flag' => array(
+        'description' => 'Boolean indicating whether the row is node or comment.',
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0
+      ),
+      'timestamp' => array(
+        'type' => 'int',
+        'default' => NULL,
+        'not null' => TRUE,
+      ),
+    ),
+    'primary key' => array('id'),
+  );
+  $schema['eb_recomm_user_points'] = array(
+    'description' => 'Records recommendations userpoints flood',
+    'fields' => array(
+        'id' => array(
+        'description' => t('Primary Key: serial No'),
+        'type'        => 'serial',
+        'not null'    => TRUE
+      ), 
+      'from_uid' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'default' => NULL,
+        'not null' => TRUE,
+      ),
+      'to_uid' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'default' => NULL,
+        'not null' => TRUE,
+      ),
+      'timestamp' => array(
+        'type' => 'int',
+        'default' => NULL,
+        'not null' => TRUE,
+      ),
+    ),
+    'primary key' => array('id'),
+  );
+    $schema['eb_assignment_neg_pts'] = array(
+    'description' => 'Records assignment negative userpoints',
+    'fields' => array(
+        'id' => array(
+        'description' => t('Primary Key: serial No'),
+        'type'        => 'serial',
+        'not null'    => TRUE
+      ), 
+      'aid' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'default' => NULL,
+        'not null' => TRUE,
+      ),
+      'uid' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'default' => NULL,
+        'not null' => TRUE,
+      ), 
+    ),
+    'primary key' => array('id'),
+  );
+  return $schema;
+}

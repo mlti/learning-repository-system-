@@ -1,0 +1,73 @@
+<?php
+// $Id: campus.module, 2012/4/4 Exp $
+
+/**
+ * @file
+ * Provides content Privacy Levels with in a Campus 
+ * 
+ * The Module provides Privacy levels: Local and Campus
+ * to be associated with Assets, Playlists and Quiz 
+ * Admin interface to Manage Schools in a Campus
+ * School Admin privelages to view associated users
+ * and content
+ */
+
+ /**
+ * Implementation of hook_menu().
+ */
+function campus_menu() {
+  $items['admin/settings/campus'] = array(
+    'title' => 'Campus Privacy Settings',
+    'description' => 'This Page is to be used to set the Privacy Level for this Campus Instance.',
+    'page callback' => 'campus_privacy_settings',
+    'access arguments' => array('manage campus'),
+    'file' => 'campus.admin.inc',
+  );
+  // User listing for school admin, for every school in the campus
+  $items['admin/campus/users/%'] = array(
+    //@todo need to add school name to title
+	'title' => 'Users',
+    'page callback' => 'campus_users_list',
+    'page arguments' => array(1),
+    'access callback' => 'campus_manageown_access',
+    'access arguments' => array(1),
+    'file' => 'campus.pages.inc',
+  );
+  // Content listing for school admin, for every school in the campus
+  $items['admin/campus/content/%'] = array(
+    //@todo need to add school name to title
+	'title' => 'Content',
+    'page callback' => 'campus_content_list',
+    'page arguments' => array(1),
+    'access callback' => 'campus_manageown_access',
+    'access arguments' => array(1),
+    'file' => 'campus.pages.inc',
+  );
+  // Listing of all schools in the campus
+  $items['admin/campus'] = array(
+    'title' => 'List of all Schools',
+    'page callback' => 'campus_school_list',
+    'access arguments' => array('manage campus'),
+    'file' => 'campus.pages.inc',
+  );
+  return $items;
+}
+ 
+ 
+ /**
+ * Access callback for School specific user listing.
+ */
+function campus_manageown_access($account) {
+  // School admins must have access to users from his school
+  // @todo check if arg(2) matches users school & 
+  //if user has manage own school permissions return TRUE
+  if () {
+    return TRUE;
+  }
+  return FALSE;
+}
+ 
+//@todo Need to add campus.js on all create & edit asset, 
+// playlist & quiz pages
+// Load Autocomplete for Coauthors & reviewers based on 
+// Privacy level

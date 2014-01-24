@@ -1,0 +1,80 @@
+<?php
+// $Id$
+
+/**
+*@file
+*Install file for asset module
+*/
+
+//tablename_schema()
+function asset_tracking_schema() {
+ $schema = array();
+
+ $schema['asset_tracking'] = array(
+   'description' => t('asset_tracking table with Asset Id, Uid, Rid, Type, timestamp, changed'),
+   'fields' => array(
+     'id' => array(
+       'type' => 'serial',
+       'length' => 10,
+       'not null' => TRUE,
+       'description' => '',
+     ),
+     'asset_id' => array(
+       'description' => t('Asset Id'),
+       'type' => 'int',
+       'unsigned' => TRUE,
+       'not null' => TRUE,
+     ),
+     'uid' => array(
+       'description' => t('User id'),
+       'type' => 'int',
+       'unsigned' => TRUE,
+       'not null' => TRUE,
+       'default' => 0,
+     ),
+     'rid' => array(
+       'description' => t('R id'),
+       'type' => 'int',
+       'unsigned' => TRUE,
+       'not null' => TRUE,
+       'default' => 0,
+     ),
+     'parent_type' => array(
+       'description' => t('Node content type.'),
+       'type' => 'varchar',
+       'length' => 255,
+       'not null' => TRUE,
+       'default' => '',
+     ),
+     'parent_id' => array(
+       'description' => t('Parent Node Id of an asset.'),
+       'type' => 'int',
+       'unsigned' => TRUE,
+       'not null' => TRUE,
+     ),
+     'created' => array(
+       'description' => t('created date time - timestamp'),
+       'type' => 'int',
+       'unsigned' => TRUE,
+       'not null' => TRUE,
+       'default' => 0,
+     ),
+   ),
+   'primary key' => array('id'),
+ );
+
+ return $schema;
+}
+
+
+
+
+//hook_install()
+function asset_install() {
+ drupal_install_schema('asset_tracking');
+}
+
+//hook_uninstall()
+function asset_uninstall() {
+ drupal_uninstall_schema('asset_tracking');
+}

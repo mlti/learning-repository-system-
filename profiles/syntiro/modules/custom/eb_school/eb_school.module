@@ -1,0 +1,124 @@
+<?php
+// $Id: school.module, 2011/12/22 5:56:PM Jaffar Exp $
+
+/**
+ * @file
+ * Enables Edubridge School managment
+ */
+ // For taxonomy subject 
+  define('TAXONOMY_SUBJECT', 7);
+  // For taxonomy academic level
+  define('TAXONOMY_ACADEMICLEVEL', 9);
+  // For taxonomy tags
+  define('TAXONOMY_TAGS', 4);
+  // For taxonomy asset category
+  define('TAXONOMY_ASSETCATEGORY', 1);
+  // For New taxonomy subject 
+  define('NEW_TAXONOMY_SUBJECT', 2);
+  // For New taxonomy academic level
+  define('NEW_TAXONOMY_ACADEMICLEVEL', 5);
+  // For New taxonomy tags 
+  define('NEW_TAXONOMY_TAGS', 7);
+  // For New taxonomy asset category
+  define('NEW_TAXONOMY_ASSETCATEGORY', 6);
+  // For Teacher Roles 
+  define('TEACHER_ROLE', 5);
+  // For Student Roles
+  define('STUDENT_ROLE', 4);
+/**
+ * Implementation of hook_menu().
+ */
+function eb_school_menu() {
+  $items = array();
+  // For school managment 
+  $items['admin/school_management'] = array(
+    'title' => 'School Management',
+    'description' => 'School ManagementActivity',
+    'page callback' => 'system_admin_menu_block_page',
+    'access arguments' => array('asset mapping'),
+    'file' => 'system.admin.inc',
+    'file path' => drupal_get_path('module', 'system'),
+  );
+  // For asset mapping
+  $items['admin/school_management/teacher_asset_mapping'] = array(
+    'title' => 'Teacher Asset Mapping',
+    'page callback'    => 'drupal_get_form',
+    'page arguments'   => array('map_teacher_edubridge_asset_form'),
+    'access arguments' => array('asset mapping'),
+    'file' => 'eb_school.inc',
+    'file path' => drupal_get_path('module', 'eb_school') . '/includes',
+  );
+  // For asset mapping
+  $items['admin/school_management/export_asset'] = array(
+    'title' => 'Export Asset',
+    'page callback'    => 'drupal_get_form',
+    'page arguments'   => array('node_export_asset_form'),
+    'access arguments' => array('export asset'),
+    'file' => 'eb_school.inc',
+    'file path' => drupal_get_path('module', 'eb_school') . '/includes',
+  );
+  // For playlist export
+  $items['admin/school_management/export_playlist'] = array(
+    'title' => 'Export Playlist',
+    'page callback'    => 'drupal_get_form',
+    'page arguments'   => array('export_playlist_form'),
+    'access arguments' => array('export playlist'),
+    'file' => 'eb_school_export_import.inc',
+    'file path' => drupal_get_path('module', 'eb_school') . '/includes',
+  );
+  // For playlist import
+  $items['admin/school_management/import_playlist'] = array(
+    'title' => 'Import Playlist',
+    'page callback'    => 'drupal_get_form',
+    'page arguments'   => array('import_playlist_form'),
+    'access arguments' => array('import playlist'),
+    'file' => 'eb_school_export_import.inc',
+    'file path' => drupal_get_path('module', 'eb_school') . '/includes',
+  );
+  // For asset mapping
+  $items['admin/school_management/teacher_playlist_mapping'] = array(
+    'title' => 'Teacher Playlist Mapping',
+    'page callback'    => 'drupal_get_form',
+    'page arguments'   => array('map_teacher_edubridge_playlist_form'),
+    'access arguments' => array('playlist mapping'),
+    'file' => 'eb_school.inc',
+    'file path' => drupal_get_path('module', 'eb_school') . '/includes',
+  );
+  return $items;
+}
+
+/**
+ * Implementation of hook_perm().
+ */
+function eb_school_perm() {
+  return array('asset mapping', 'export asset', 'export playlist', 'import playlist', 'playlist mapping');
+}
+/**
+ * Implementation of hook_node_export_node_alter().
+ * 
+ */
+function eb_school_node_export_node_alter(&$node, $original_node, $method){
+  global $user;
+  switch ($original_node->type) {
+    case 'asset':
+      if (arg(1) == "content" && arg(2) == "import") {
+        $node->field_author[0]['uid'] = $user->uid;
+      }
+      break;
+  }
+}
+/**
+ * To get taxonomy tid based on vid, term data
+ *
+ * @param $term_data
+ *  It contain string to match term data
+ *
+ * @param $taxonomy_vid
+ *  It contains integer to match vocabulary id
+ *
+ * @return
+ *  It return term id 
+ */
+function get_taxonomy_tid($term_data, $taxonomy_vid) {
+  return db_result(db_query("SELECT tid FROM {term_data} WHERE name= '%s' AND vid=%d", $term_data, $taxonomy_vid));
+}

@@ -1,0 +1,8 @@
+; $Id: eb_others.info,v 1 2010/10/01 23:25:18 bala Exp $
+name = EB Others
+description = EB Others.
+package = Education Bridge
+core = 6.x
+; Information added by drupal.org packaging script on 2010-10-01
+version = "6.x-1.1"
+core = "6.x"

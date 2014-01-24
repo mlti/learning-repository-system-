@@ -1,0 +1,180 @@
+<?php
+// $Id: bridge.module, 2011/10/19 12:56:PM Jaffar Exp $
+
+/**
+ * @file
+ * Enables keeping an easily and regularly updated web page or a blog.
+ */
+
+/**
+ * Implementation of hook_menu().
+ */
+function bridge_menu() {
+  $items = array();
+
+  $items['front'] = array(
+    'page callback' => 'bridge_frontpage',
+    'access arguments' => array('access homepage'),
+    'type' => MENU_CALLBACK,
+    'file' => 'includes/bridge.inc',
+  );
+  $items['bridge'] = array(
+    'page callback' => 'bridge_home',
+    'access arguments' => array('access homepage'),
+    'type' => MENU_CALLBACK,
+    'file' => 'includes/bridge.inc',
+  );
+  $items['user/%/preferences'] = array(
+    'title' => 'Preferences',
+    'page callback'    => 'drupal_get_form',
+    'page arguments'   => array('user_preference_list'),
+    'access arguments' => array('read privatemsg'),
+    'tab_parent' => 'user/%/edit',
+    'weight' => 10,
+    'type' => MENU_LOCAL_TASK,
+    'file' => 'includes/bridge.inc',
+  );
+  return $items;
+}
+
+/**
+ * Implementation of hook_perm().
+ *
+ */
+function bridge_perm() {
+  return array('access bridge', 'access homepage', 'access new layout');
+}
+
+/**
+ * Implementation of hook_perm().
+ *
+ */
+function bridge_preprocess_page(&$vars){
+  global $user;
+  if($user->uid){
+    $vars['manage_account'] = l(t('Manage Account'), 'user');
+    $vars['logout_link'] = l(t('Logout'), 'logout');
+
+    if($user->picture) {
+      $picture = $user->picture;
+    } else {
+      $picture = variable_get('user_picture_default', '');
+    }
+
+    $puser = create_eduauthor($user->uid, NULL, TRUE);
+    $alt = 'Profile';
+    $title = 'Profile';
+    $vars['top_user_image'] = l(theme('imagecache', 'header_top_user_image_20', $picture, $alt, $title, $attributes) , 'user', $options = array('html' => TRUE, 'attributes' => array('class' => '')));
+    $vars['top_user_link']  = '<span>Welcome,</span> ' . l($puser, 'user') . '<a href="javascript:;" class="account-arrow">Manage Account</a>';
+  }
+}
+
+/**
+ * Implementation of hook_theme().
+ *
+ */
+function bridge_theme() {
+  return array(
+    'menu_leftside_block' => array(
+      'template' => 'templates/menu-leftside-block',
+      'arguments' => array('results' => NULL),
+    ),
+    'my_bridge' => array(
+      'template' => 'templates/mybridge',
+      'arguments' => array('results' => NULL),
+    ),
+  );
+}
+
+
+/**
+ * Implementation of hook_block().
+ */
+function bridge_block($op = 'list', $delta = 0, $edit = array()) {
+  global $user;
+  // Include bridge block files
+  module_load_include('inc', 'bridge', 'includes/bridge_block');
+
+  if ($op == 'list') {
+    $blocks[0]['info'] = t('Menu Left side Block');
+    $blocks[0]['cache'] = BLOCK_NO_CACHE;
+    $blocks[1]['info'] = t('My Bridge');
+    $blocks[1]['cache'] = BLOCK_NO_CACHE;
+    return $blocks;
+  }
+  elseif ($op == 'view') {
+    // This is common for all pages both student and teacher
+    switch ($delta) {
+      case 0:
+        $node = custom_node_load();
+          $block = array(
+          'subject' => t('Education Bridge'),
+          'content' => menu_leftside_block(),
+        );
+        break;
+      case 1:
+
+        $node = custom_node_load();
+        // to find comments corrsponding node id and not to display the bridge block in comment section for discussion page.
+        if(arg(0) == 'comment' && arg(1) == 'edit' && is_numeric(arg(2)) ) {
+          $nid = db_result(db_query("SELECT nid FROM comments WHERE cid=%d", arg(2)));
+          $comment_node = node_load($nid);
+        }
+        if(arg(0) == 'communities' || arg(0) == 'community_discussion' || arg(0) == 'community_thread' || ( arg(0) == 'node' && arg(1) == 'add' &&arg(2) == 'discussion') || $node->type == 'community_interest_group' || $node->type == 'discussion' || arg(2) == 'community-interest-group' || $comment_node->type == 'discussion' || (arg(0) == "collaboration" && arg(1) == "globalstudygroup")) {
+
+        }
+        else {
+          $block = array(
+            'subject' => t(''),
+            'content' => my_bridge(),
+          );
+        }
+        break;
+    }
+    if (isset($block)) {
+      return $block;
+    }
+
+  }
+  return $block;
+}
+
+
+/*
+ * Community Info Condition function
+ *
+ * Function is used instead of placing all the conditions in interface.
+ *
+ */
+function condition_cck_info_block($block_name) {
+
+  if (is_numeric(arg(1)) && arg(0) == 'node') {
+    $node = node_load(arg(1));
+  }
+  else if (arg(0) == 'comment' && arg(1) == 'edit' && is_numeric(arg(2))) {
+    $nid = db_result(db_query("SELECT nid FROM comments WHERE cid=%d", arg(2)));
+    $node = node_load($nid);
+  }
+  else if(arg(0) == 'assignment' && is_numeric(arg(2))) {
+    $node = node_load(arg(2));
+  }
+
+  if($block_name == 'curriculum_block') {
+    if ($node->type == 'curriculum') {
+      return true;
+    }
+  }
+  if($block_name == 'asset_block') {
+    if ($node->type == 'asset') {
+      return true;
+    }
+  }
+  if($block_name == 'bead_block') {
+    if ($node->type == 'bead') {
+      return true;
+    }
+  }
+  if($block_name == 'community_block') {
+    return true;
+  }
+}

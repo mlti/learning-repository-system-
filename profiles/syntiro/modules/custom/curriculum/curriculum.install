@@ -1,0 +1,350 @@
+<?php
+// $Id$
+
+/**
+*@file
+*Install file for curriculum module
+*/
+
+////tablename_schema()
+//function curriculum_topics_schema() {
+// $schema = array();
+//
+// $schema['curriculum_topics'] = array(
+//   'description' => t('curriculum_topics table with Topic id, cid, topic_title, wsight , timestamp, changed'),
+//   'fields' => array(
+//     'topic_id' => array(
+//       'description' => t('Topic id'),
+//       'type' => 'serial',
+//       'unsigned' => TRUE,
+//       'not null' => TRUE,
+//     ),
+//     'cid' => array(
+//       'description' => t('Group id'),
+//       'type' => 'int',
+//       'unsigned' => TRUE,
+//       'not null' => TRUE,
+//       'default' => 0,
+//     ),
+//     'topic_title' => array(
+//       'description' => t('Topic Title'),
+//       'type' => 'text',
+//       'not null' => TRUE,
+//     ),
+//    'topic_type' => array(
+//       'description' => t('Topic Type'),
+//       'type' => 'varchar',
+//       'not null' => TRUE,
+//     ),
+//     'weight' => array(
+//       'description' => t('Order of the Curriculum '),
+//       'type' => 'varchar',
+//       'length' => 255,
+//       'not null' => TRUE,
+//       'default' => '',
+//     ),
+//     'created' => array(
+//       'description' => t('added date time - timestamp'),
+//       'type' => 'int',
+//       'unsigned' => TRUE,
+//       'not null' => TRUE,
+//       'default' => 0,
+//     ),
+//     'changed' => array(
+//       'description' => t('changed date time - timestamp'),
+//       'type' => 'int',
+//       'unsigned' => TRUE,
+//       'not null' => TRUE,
+//       'default' => 0,
+//     ),
+//   ),
+//   'primary key' => array('topic_id'),
+// );
+//
+// return $schema;
+//}
+
+//tablename_schema()
+function curriculum_topics_schema() {
+$schema = array();
+$schema['curriculum_topics'] = array(
+  'description' => t('curriculum_topics table with Topic id, cid, topic_title, wsight , timestamp, changed'),
+  'fields' => array(
+    'topic_id' => array(
+      'description' => t('Topic id'),
+      'type' => 'serial',
+      'unsigned' => TRUE,
+      'not null' => TRUE,
+    ),
+    'cid' => array(
+      'description' => t('Group id'),
+      'type' => 'int',
+      'unsigned' => TRUE,
+      'not null' => TRUE,
+      'default' => 0,
+    ),
+    'topic_title' => array(
+      'description' => t('Topic Title'),
+      'type' => 'text',
+      'not null' => TRUE,
+    ),
+    'weight' => array(
+      'description' => t('Order of the Curriculum'),
+      'type' => 'varchar',
+      'length' => '255',
+      'not null' => TRUE,
+      'default' => '',
+    ),
+    'created' => array(
+      'description' => t('TODO: please describe this field!'),
+      'type' => 'int',
+      'unsigned' => TRUE,
+      'not null' => TRUE,
+      'default' => 0,
+    ),
+    'changed' => array(
+      'description' => t('added date time - timestamp'),
+      'type' => 'int',
+      'unsigned' => TRUE,
+      'not null' => TRUE,
+      'default' => 0,
+    ),
+    'topic_type' => array(
+      'description' => t('changed date time - timestamp'),
+      'type' => 'varchar',
+      'length' => '255',
+      'not null' => TRUE,
+    ),
+  ),
+  'primary key' => array('topic_id'),
+  'indexes' => array(
+    'cid' => array('cid', 'weight'),
+    'weight' => array('weight'),
+  ),
+);
+
+$schema['clone_tracking'] = array(
+  'description' => t('clone tracking table'),
+  'fields' => array(
+    'id' => array(
+      'description' => t('id'),
+      'type' => 'serial',
+      'unsigned' => TRUE,
+      'not null' => TRUE,
+    ),
+    'original_id' => array(
+      'description' => t('Original Id'),
+      'type' => 'int',
+      'unsigned' => TRUE,
+      'not null' => TRUE,
+      'default' => 0,
+    ),
+    'clone_id' => array(
+      'description' => t('Clone Id'),
+      'type' => 'int',
+      'unsigned' => TRUE,
+      'not null' => TRUE,
+      'default' => 0,
+    ),
+    'uid' => array(
+      'description' => t('User Id'),
+      'type' => 'int',
+      'unsigned' => TRUE,
+      'not null' => TRUE,
+      'default' => 0,
+    ),
+    'type' => array(
+      'description' => t('Clone Type'),
+      'type' => 'varchar',
+      'length' => '255',
+      'not null' => TRUE,
+      'default' => '',
+    ),
+    'created' => array(
+      'description' => t('TODO: please describe this field!'),
+      'type' => 'int',
+      'unsigned' => TRUE,
+      'not null' => TRUE,
+      'default' => 0,
+    ),
+  ),
+  'primary key' => array('id'),
+);
+
+return $schema;
+}
+
+function curriculum_topics_assets_schema() {
+ $schema = array();
+
+ $schema['curriculum_topics_assets'] = array(
+   'description' => t('curriculum_topics_assets table with id, Topic id, asset node id or URL, Type of the content,title of the content, Description of the content, weight , user id, is admin id ,timestamp, changed'),
+   'fields' => array(
+     'id' => array(
+       'description' => t('id'),
+       'type' => 'serial',
+       'unsigned' => TRUE,
+       'not null' => TRUE,
+     ),
+     'topic_id' => array(
+       'description' => t('Topic id'),
+       'type' => 'int',
+       'unsigned' => TRUE,
+       'not null' => TRUE,
+       'default' => 0,
+     ),
+     'asset' => array(
+       'description' => t('Node id or Url '),
+       'type' => 'text',
+       'not null' => TRUE,
+     ),
+     'type' => array(
+       'description' => t('Category Typ'),
+       'type' => 'varchar',
+       'length' => 255,
+       'not null' => TRUE,
+     ),
+     'title' => array(
+       'description' => t('Title'),
+       'type' => 'text',
+       'not null' => TRUE,
+     ),
+     'description' => array(
+       'description' => t('Description'),
+       'type' => 'text',
+       'not null' => TRUE,
+     ),
+     'weight' => array(
+       'description' => t('Order of the Curriculum '),
+       'type' => 'varchar',
+       'length' => 255,
+       'not null' => TRUE,
+       'default' => '',
+     ),
+     'is_admin' => array(
+       'description' => t('Author Id'),
+       'type' => 'int',
+       'unsigned' => TRUE,
+       'not null' => TRUE,
+       'default' => 0,
+     ),
+     'created' => array(
+       'description' => t('added date time - timestamp'),
+       'type' => 'int',
+       'unsigned' => TRUE,
+       'not null' => TRUE,
+       'default' => 0,
+     ),
+     'changed' => array(
+       'description' => t('added date time - timestamp'),
+       'type' => 'int',
+       'unsigned' => TRUE,
+       'not null' => TRUE,
+       'default' => 0,
+     ),
+   ),
+   'primary key' => array('id'),
+ );
+
+ return $schema;
+}
+
+//Update new field called type
+function curriculum_update_6200() {
+$ret = array();
+db_add_field($ret, 'curriculum_topics', 'topic_type',array('type' => 'varchar',
+       'length' => 255,
+       'not null' => TRUE,));
+return $ret;
+}
+
+//Rename field called topics_id to topic_id. By Fero on Aug 09 2011
+function curriculum_update_6201() {
+ $ret = array();
+ db_change_field($ret, 'curriculum_topics_assets', 'topics_id', 'topic_id', array(
+       'description' => t('Topic id'),
+       'type' => 'int',
+       'unsigned' => TRUE,
+       'not null' => TRUE,
+       'default' => 0,
+     ));
+ return $ret;
+}
+//curriculum should be renamed as playlist need to change tooptip and edit curriculum cck page
+function curriculum_update_6202() {
+  variable_set('tooltip_mycurriculum',"The Playlists you're currently working on");
+  variable_set('tooltip_myassets', "Your personal Assets and your previously created Playlists within EB");
+  db_query('UPDATE {node_type} SET name="Playlist", description="Please update information
+ about your Playlist here. Using proper Description and tags will better search enable your playlist in Edubridge.",
+ help="Please update information about your Playlist here. Using proper Description and tags will better search
+enable your playlist in Edubridge." WHERE type="curriculum"');
+}
+
+//Create Clone tracking table.
+//function curriculum_update_6203() {
+//  $schema = array();
+//  $schema['clone_tracking'] = array(
+//    'description' => t('clone tracking table'),
+//    'fields' => array(
+//      'id' => array(
+//        'description' => t('id'),
+//        'type' => 'serial',
+//        'unsigned' => TRUE,
+//        'not null' => TRUE,
+//      ),
+//      'original_id' => array(
+//        'description' => t('Original Id'),
+//        'type' => 'int',
+//        'unsigned' => TRUE,
+//        'not null' => TRUE,
+//        'default' => 0,
+//      ),
+//      'clone_id' => array(
+//        'description' => t('Clone Id'),
+//        'type' => 'int',
+//        'unsigned' => TRUE,
+//        'not null' => TRUE,
+//        'default' => 0,
+//      ),
+//      'uid' => array(
+//        'description' => t('User Id'),
+//        'type' => 'int',
+//        'unsigned' => TRUE,
+//        'not null' => TRUE,
+//        'default' => 0,
+//      ),
+//      'type' => array(
+//        'description' => t('Clone Type'),
+//        'type' => 'varchar',
+//        'length' => 255,
+//        'not null' => TRUE,
+//        'default' => '',
+//      ),
+//      'created' => array(
+//        'description' => t('added date time - timestamp'),
+//        'type' => 'int',
+//        'unsigned' => TRUE,
+//        'not null' => TRUE,
+//        'default' => 0,
+//      ),
+//    ),
+//    'primary key' => array('id'),
+//  );
+//
+//  $ret = array();
+//  db_create_table($ret, 'clone_tracking', $schema['clone_tracking']);
+//  return $ret;
+//}
+
+
+//hook_install()
+function curriculum_install() {
+ drupal_install_schema('curriculum_topics');
+ drupal_install_schema('curriculum_topics_assets');
+}
+
+//hook_uninstall()
+function curriculum_uninstall() {
+ drupal_uninstall_schema('curriculum_topics');
+ drupal_uninstall_schema('curriculum_topics_assets');
+}

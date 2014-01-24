@@ -1,0 +1,6 @@
+; $Id: recommend.info,v 1.2 2007/07/24 16:20:44 seanr Exp $
+
+name = Recommend
+description = Recommend this page module
+core = "6.x"
+package = Education Bridge

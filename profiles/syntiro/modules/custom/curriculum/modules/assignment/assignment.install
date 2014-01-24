@@ -1,0 +1,503 @@
+<?php
+// $Id$
+
+/**
+*@file
+*Install file for assignment module
+*/
+
+//tablename_schema()
+function assignment_schema() {
+ $schema = array();
+
+ //$schema['assignment'] = array(
+ //  'description' => t('Assignment table with Assignment id, st_id, from_uid, to_gid, to_uid, created, changed'),
+ //  'fields' => array(
+ //    'aid' => array(
+ //      'description' => t('Assignment id'),
+ //      'type' => 'serial',
+ //      'unsigned' => TRUE,
+ //      'not null' => TRUE,
+ //    ),
+ //    'st_id' => array(
+ //      'description' => t('st_id'),
+ //      'type' => 'int',
+ //      'unsigned' => TRUE,
+ //      'not null' => TRUE,
+ //    ),
+ //    'from_uid' => array(
+ //      'description' => t('From User ID'),
+ //      'type' => 'int',
+ //      'unsigned' => TRUE,
+ //      'not null' => TRUE,
+ //    ),
+ //   'to_gid' => array(
+ //      'description' => t('To-Group ID'),
+ //      'type' => 'int',
+ //      'unsigned' => TRUE,
+ //      'not null' => FALSE,
+ //    ),
+ //    'to_uid' => array(
+ //      'description' => t('To-User ID'),
+ //      'type' => 'int',
+ //      'unsigned' => TRUE,
+ //      'not null' => FALSE,
+ //    ),
+ //    'created' => array(
+ //      'description' => t('added date time - timestamp'),
+ //      'type' => 'int',
+ //      'unsigned' => TRUE,
+ //      'not null' => TRUE,
+ //      'default' => 0,
+ //    ),
+ //    'changed' => array(
+ //      'description' => t('changed date time - timestamp'),
+ //      'type' => 'int',
+ //      'unsigned' => TRUE,
+ //      'not null' => TRUE,
+ //      'default' => 0,
+ //    ),
+ //    'status' => array(
+ //      'description' => t('St ID'),
+ //      'type' => 'int',
+ //      'unsigned' => TRUE,
+ //      'not null' => TRUE,
+ //      'default' => 0,
+ //    ),
+ //    'subject' => array(
+ //      'type' => 'varchar',
+ //      'length' => 255,
+ //      'not null' => TRUE,
+ //    ),
+ //    'message' => array(
+ //      'type' => 'varchar',
+ //      'length' => 255,
+ //      'not null' => TRUE,
+ //    ),
+ //    'nid' => array(
+ //      'description' => t('Node ID'),
+ //      'type' => 'int',
+ //      'unsigned' => TRUE,
+ //      'not null' => TRUE,
+ //    ),
+ //  ),
+ //  'primary key' => array('aid'),
+ //);
+ $schema['assignment'] = array(
+  'description' => t('Assignment table with Assignment id, st_id, from_uid, to_gid, to_uid, created, changed'),
+  'fields' => array(
+    'aid' => array(
+      'description' => t('Assignment id'),
+      'type' => 'serial',
+      'unsigned' => TRUE,
+      'not null' => TRUE,
+    ),
+    'st_id' => array(
+      'description' => t('st_id'),
+      'type' => 'int',
+      'unsigned' => TRUE,
+      'not null' => TRUE,
+    ),
+    'from_uid' => array(
+      'description' => t('From User ID'),
+      'type' => 'int',
+      'unsigned' => TRUE,
+      'not null' => TRUE,
+    ),
+    'to_gid' => array(
+      'description' => t('To-Group ID'),
+      'type' => 'varchar',
+      'length' => '2000',
+      'not null' => TRUE,
+    ),
+    'to_uid' => array(
+      'description' => t('To-User ID'),
+      'type' => 'int',
+      'unsigned' => TRUE,
+      'not null' => FALSE,
+    ),
+    'created' => array(
+      'description' => t('dded date time - timestamp'),
+      'type' => 'int',
+      'unsigned' => TRUE,
+      'not null' => TRUE,
+      'default' => 0,
+    ),
+    'changed' => array(
+      'description' => t('changed date time - timestamp'),
+      'type' => 'int',
+      'unsigned' => TRUE,
+      'not null' => TRUE,
+      'default' => 0,
+    ),
+    'subject' => array(
+      //'description' => t('TODO: please describe this field!'),
+      'type' => 'varchar',
+      'length' => '255',
+      'not null' => TRUE,
+    ),
+    'message' => array(
+      //'description' => t('TODO: please describe this field!'),
+      'type' => 'varchar',
+      'length' => '255',
+      'not null' => TRUE,
+    ),
+    'link' => array(
+      'description' => t('Link'),
+      'type' => 'varchar',
+      'length' => '1000',
+      'not null' => TRUE,
+    ),
+  ),
+  'primary key' => array('aid'),
+);
+ return $schema;
+}
+
+function assignment_statistics_schema() {
+ $schema = array();
+ //$schema['assignment_statistics'] = array(
+ //  'description' => t('assignment_statistics table with as_id int(15), uid int(15), st_id int(15), access_time int(15)'),
+ //  'fields' => array(
+ //    'as_id' => array(
+ //      'description' => t('Assignment ID'),
+ //      'type' => 'serial',
+ //      'unsigned' => TRUE,
+ //      'not null' => TRUE,
+ //    ),
+ //    'uid' => array(
+ //      'description' => t('User ID'),
+ //      'type' => 'int',
+ //      'unsigned' => TRUE,
+ //      'not null' => TRUE,
+ //    ),
+ //    'st_id' => array(
+ //      'description' => t('St ID'),
+ //      'type' => 'int',
+ //      'unsigned' => TRUE,
+ //      'not null' => TRUE,
+ //    ),
+ //    'access_time' => array(
+ //      'description' => t('changed date time - timestamp'),
+ //      'type' => 'int',
+ //      'unsigned' => TRUE,
+ //      'not null' => TRUE,
+ //      'default' => 0,
+ //    ),
+ //  ),
+ //  'primary key' => array('as_id'),
+ //);
+ $schema['assignment_statistics'] = array(
+  'description' => t('TODO: please describe this table!'),
+  'fields' => array(
+    'as_id' => array(
+      'description' => t('Assignment ID'),
+      'type' => 'serial',
+      'unsigned' => TRUE,
+      'not null' => TRUE,
+    ),
+    'uid' => array(
+      'description' => t('User ID'),
+      'type' => 'int',
+      'unsigned' => TRUE,
+      'not null' => TRUE,
+    ),
+    'access_time' => array(
+      'description' => t('changed date time - timestamp'),
+      'type' => 'int',
+      'unsigned' => TRUE,
+      'not null' => TRUE,
+      'default' => 0,
+    ),
+    'created_time' => array(
+      'description' => t('added date time - timestamp'),
+      'type' => 'int',
+      'unsigned' => TRUE,
+      'not null' => TRUE,
+      'default' => 0,
+    ),
+    'count' => array(
+      //'description' => t('TODO: please describe this field!'),
+      'type' => 'int',
+      'unsigned' => TRUE,
+      'not null' => TRUE,
+    ),
+    'st_id' => array(
+      'description' => t('St ID'),
+      'type' => 'int',
+      'unsigned' => TRUE,
+      'not null' => TRUE,
+    ),
+  ),
+  'primary key' => array('as_id'),
+);
+
+ return $schema;
+}
+
+function assignment_assign_schema() {
+ $schema = array();
+ $schema['assignment_assign'] = array(
+   'description' => t('assignment_assign table to maintain unique assignments'),
+   'fields' => array(
+     'st_id' => array(
+       'description' => t('Subtopic ID'),
+       'type' => 'int',
+       'unsigned' => TRUE,
+       'not null' => TRUE
+     ),
+     'uid' => array(
+       'description' => t('User ID'),
+       'type' => 'int',
+       'unsigned' => TRUE,
+       'not null' => TRUE
+     ),
+     'changed' => array(
+       'description' => t('changed date time - timestamp'),
+       'type' => 'int',
+       'not null' => TRUE,
+       'default' => 0
+     ),
+     'status' => array(
+       'description' => t('status for pending/completed'),
+       'type' => 'varchar',
+       'length' => 255,
+       'not null' => TRUE
+     ),
+     'assign_status' => array(
+       'description' => t('status for assign/unassign'),
+       'type' => 'varchar',
+       'length' => 255,
+       'not null' => TRUE
+     ),
+     'remarks' => array(
+       'description' => t('remarks posted by student'),
+       'type' => 'varchar',
+       'length' => 1000,
+       'not null' => TRUE
+     ),
+     'feedback' => array(
+       'description' => t('feedback posted by teacher'),
+       'type' => 'varchar',
+       'length' => 1000,
+       'not null' => TRUE
+     ),
+     'remarks_time' =>  array(
+        'description' => t('added date time - timestamp'),
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0
+     ),
+     'feedback_time' => array(
+        'description' => t('added date time - timestamp'),
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0
+     ),
+   ),
+ );
+
+ return $schema;
+}
+
+
+//Add field called remarks in assignment Table. By Fero on Aug 30 2011
+function assignment_update_6202() {
+ $ret = array();
+ //db_change_field($ret, 'assignment_statistics', 'st_id', 'aid', array(
+ //      'description' => t('Assignment id'),
+ //      'type' => 'int',
+ //      'unsigned' => TRUE,
+ //      'not null' => TRUE,
+ //    ));
+
+ //db_add_field($ret, 'assignment_statistics', 'created_time', array(
+ //      'description' => t('added date time - timestamp'),
+ //      'type' => 'int',
+ //      'unsigned' => TRUE,
+ //      'not null' => TRUE,
+ //      'default' => 0,
+ //     ));
+ //
+ //db_add_field($ret, 'assignment_statistics', 'count', array(
+ //      'type' => 'int',
+ //      'unsigned' => TRUE,
+ //      'not null' => TRUE,
+ //     ));
+
+ //db_add_field($ret, 'assignment', 'remarks',array(
+ //      'type' => 'varchar',
+ //      'length' => 255,
+ //      'not null' => TRUE,
+ //      ));
+ //
+ //db_change_field($ret, 'assignment', 'nid', 'nid', array(
+ //      'description' => t('Node ID'),
+ //      'type' => 'varchar',
+ //      'length' => 500,
+ //      'not null' => TRUE,
+ //    ));
+ //
+ //db_change_field($ret, 'assignment', 'remarks', 'remarks', array(
+ //      'type' => 'varchar',
+ //      'length' => 1000,
+ //      'not null' => TRUE,
+ //     ));
+
+ return $ret;
+}
+
+
+//Changing type of field GroupID from Integer to Varchar in assignment Table. By Saravana on Sep 06 2011
+function assignment_update_6203() {
+ $ret = array();
+ db_change_field($ret, 'assignment', 'to_gid', 'to_gid', array(
+       'description' => t('To-Group ID'),
+       'type' => 'varchar',
+       'length' => 2000,
+       'not null' => TRUE,
+     ));
+
+ return $ret;
+}
+
+
+//Adding feedback, remarks_time, feed_back_time in assignment table - by anitha on sep 23 2011
+
+function assignment_update_6205(){
+$ret = array();
+
+ //// To delete aid field from assignment_statistics table.
+ //db_drop_field($ret, 'assignment_statistics', 'aid');
+
+ // adding new field st_id in assignment_statistics table
+ //db_add_field($ret, 'assignment_statistics', 'st_id',
+ //  array(
+ //      'description' => t('Subtopic ID'),
+ //      'type' => 'int',
+ //      'unsigned' => TRUE,
+ //      'not null' => TRUE,
+ //      )
+ // );
+
+ // changing the field name form nid to link
+ //db_change_field($ret, 'assignment', 'nid', 'link',
+ //  array(
+ //       'type' => 'varchar',
+ //       'length' => 1000,
+ //       'not null' => TRUE,
+ //      )
+ // );
+
+ //db_add_field($ret, 'assignment', 'feedback',
+ //  array(
+ //       'type' => 'varchar',
+ //       'length' => 255,
+ //       'not null' => TRUE,
+ //      )
+ //);
+
+ //db_add_field($ret, 'assignment', 'remarks_time',
+ //  array(
+ //       'description' => t('added date time - timestamp'),
+ //       'type' => 'int',
+ //       'unsigned' => TRUE,
+ //       'not null' => TRUE,
+ //       'default' => 0,
+ //       )
+ //);
+ //db_add_field($ret, 'assignment', 'feedback_time',
+ //  array(
+ //       'description' => t('added date time - timestamp'),
+ //       'type' => 'int',
+ //       'unsigned' => TRUE,
+ //       'not null' => TRUE,
+ //       'default' => 0,
+ //       )
+ //);
+
+ //To delete and add fields in assignment and assignmnt_assign table by anitha on 26 sep 2011
+
+ // To delete remarks_time field from assignment table.
+ //db_drop_field($ret, 'assignment', 'remarks_time');
+
+ // To delete feedback_time field from assignment table.
+
+ // VERY IMPORTANT PLEASE NOTE IT - FEROZE
+ /*db_drop_field($ret, 'assignment', 'feedback');*/
+
+
+
+ // To delete feedback field from assignment table.
+ //db_drop_field($ret, 'assignment', 'feedback_time');
+
+ /*db_add_field($ret, 'assignment_assign', 'remarks_time',
+   array(
+        'description' => t('added date time - timestamp'),
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+        )
+ );
+ db_add_field($ret, 'assignment_assign', 'feedback_time',
+   array(
+        'description' => t('added date time - timestamp'),
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+        )
+ );*/
+
+
+return $ret;
+}
+
+// Creating index on assignment_assign table.
+function assignment_update_6206() {
+
+ //For assignment table
+ //db_query("CREATE INDEX assignment_st_id_index ON {assignment}(st_id)");
+ //db_query("CREATE INDEX assignment_st_id_index ON {assignment}(to_uid)");
+
+ //For assignment_assingn table
+ //db_query("CREATE INDEX assign_st_id_index ON {assignment_assign}(st_id)");
+ //db_query("CREATE INDEX assign_uid_index ON {assignment_assign}(uid)");
+
+ //For assignment_statistics table
+ //db_query("CREATE INDEX statistics_st_id_index ON {assignment_statistics}(st_id)");
+ //db_query("CREATE INDEX statistics_uid_index ON {assignment_statistics}(uid)");
+}
+
+
+//Copying data from assignment table to assignment_assign table.
+function assignment_update_6207() {
+
+db_query("INSERT INTO {assignment_assign} (st_id,uid,changed,status,assign_status,remarks,feedback)
+SELECT st_id,to_uid,changed,status,1,remarks, '' FROM {assignment}");
+
+}
+
+//To drop unneccessary fields from assignment table
+function assignment_update_6208() {
+ // To delete remarks field from assignment table.
+ db_drop_field($ret, 'assignment', 'remarks');
+
+ // To delete status field from assignment table.
+ db_drop_field($ret, 'assignment', 'status');
+}
+
+//hook_install()
+function assignment_install() {
+ drupal_install_schema('assignment');
+ drupal_install_schema('assignment_statistics');
+ drupal_install_schema('assignment_assign');
+}
+
+//hook_uninstall()
+function assignment_uninstall() {
+ drupal_uninstall_schema('assignment');
+ drupal_uninstall_schema('assignment_statistics');
+ drupal_uninstall_schema('assignment_assign');
+}

@@ -1,0 +1,472 @@
+<?php
+// $Id$
+
+/**
+ * @file
+ * Display a Google Custom Search Engine on your site.
+ */
+
+/**
+ * Implementation of hook_menu().
+ */
+function google_cse_menu() {
+  if (!module_exists('google') && variable_get('google_cse_results_display', 'here') != 'google') {
+    $path = variable_get('google_cse_results_path', 'search/google');
+    $items[$path] = array(
+      'access arguments' => array('search Google CSE'),
+      'title callback' => 'google_cse_results_tab',
+      'description' => 'Google Custom Search Engine',
+      'page callback' => 'google_cse_results',
+      'type' => MENU_LOCAL_TASK,
+    );
+  }
+  $items['admin/settings/google_cse'] = array(
+    'access arguments' => array('administer site configuration'),
+    'title' => 'Google CSE',
+    'description' => 'Configure the Google Custom Search Engine.',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('google_cse_admin_settings'),
+    'type' => MENU_NORMAL_ITEM,
+    'file' => 'google_cse.admin.inc',
+  );
+  return $items;
+}
+
+/**
+ * Implementation of hook_theme().
+ */
+function google_cse_theme() {
+  return array(
+    'google_cse_results' => array(
+      'arguments' => array('form' => TRUE, 'self' => FALSE),
+      'file' => 'google_cse.theme.inc',
+      'template' => 'google_cse_results',
+    ),
+    'google_cse_xml_results' => array(
+      'arguments' => array('form' => TRUE, 'self' => FALSE),
+      'file' => 'google_cse.theme.inc',
+      'template' => 'google_cse_xml_results',
+    ),
+    'google_cse_results_gadget' => array(
+      'arguments' => array(),
+      'file' => 'google_cse.theme.inc',
+      'template' => 'google_cse_results_gadget',
+    ),
+  );
+}
+
+/**
+ * Implementation of hook_block().
+ */
+function google_cse_block($op = 'list', $delta = 0, $edit = array()) {
+  if ($op == 'list') {
+    return array(
+      0 => array('info' => t('Google CSE'), 'cache' => BLOCK_NO_CACHE),
+      1 => array('info' => t('Google CSE results'), 'cache' => BLOCK_NO_CACHE),
+    );
+  }
+  elseif ($op == 'view' && user_access('search Google CSE')) {
+    switch ($delta) {
+      case 0:
+        return array('subject' => t('Search'), 'content' => drupal_get_form('google_cse_searchbox_form'));
+      case 1:
+        return array('subject' => t('Search'), 'content' => theme('google_cse_results', TRUE, TRUE));
+    }
+  }
+}
+
+/**
+ * Implementation of hook_forms();
+ */
+function google_cse_forms() {
+  $forms = array();
+  $forms['google_cse_searchbox_form'] = array(
+    'callback' => 'google_cse_searchbox_form_builder',
+    'callback arguments' => array('google_cse_searchbox_form'),
+  );
+  $forms['google_cse_results_searchbox_form'] = array(
+    'callback' => 'google_cse_searchbox_form_builder',
+    'callback arguments' => array('google_cse_results_searchbox_form'),
+  );
+  return $forms;
+}
+
+/**
+ * Form builder for the searchbox forms.
+ */
+function google_cse_searchbox_form_builder(&$form_state, $form_id, $self = FALSE) {
+  $form = array();
+  // The default form.
+  if (variable_get('google_cse_results_display', 'here') != 'google') {
+    $form['#action'] = url($self ? $_GET['q'] : variable_get('google_cse_results_path', 'search/google'));
+    $cof = variable_get('google_cse_cof_here', 'FORID:11');
+  }
+  else {
+    $form['#action'] = 'http://'. variable_get('google_cse_domain', 'www.google.com') .'/cse';
+    $cof = variable_get('google_cse_cof_google', 'FORID:0');
+  }
+
+  $form['#method'] = 'get';
+
+  $form['query'] = array(
+    '#type' => 'textfield',
+    '#default_value' => isset($_GET['query']) ? preg_replace('/ more:[^&]*/', '', $_GET['query']) : '',
+  );
+  $form['sa'] = array(
+    '#type' => 'submit',
+    '#value' => t('Search'),
+  );
+
+  // items needed for non-XML-display versions of search form,
+  // whether it is in the block or on the results page
+
+  if (variable_get('google_cse_results_display', 'here') != 'xml') {
+    $form['cx'] = array(
+       '#type' => 'hidden',
+      '#value' => variable_get('google_cse_cx', ''),
+    );
+
+    $form['cof'] = array(
+      '#type' => 'hidden',
+      '#value' => $cof,
+    );
+
+    foreach (google_cse_advanced_settings() as $parameter => $setting) {
+      $form[$parameter] = array(
+        '#type' => 'hidden',
+        '#value' => $setting,
+     );
+    }
+  }
+  // And the small differences between both.
+  switch ($form_id) {
+    case 'google_cse_searchbox_form':
+      $form['query']['#size'] = intval(variable_get('google_cse_searchbox_width', 15));
+      $form['query']['#attributes']['title'] = t('Enter the terms you wish to search for.');
+      break;
+    case 'google_cse_results_searchbox_form':
+      $form['query']['#size'] = intval(variable_get('google_cse_results_searchbox_width', 40));
+      $form['query']['#title'] = variable_get('google_cse_searchbox_header', t('Enter your keywords'));
+      if (variable_get('google_cse_results_gadget', 1)) {
+        $form['sa']['#suffix'] = theme('google_cse_results_gadget');
+      }
+  }
+
+  // TODO: May need to remove
+  google_cse_sitesearch_form($form);
+  return $form;
+}
+
+/**
+ * Render the search page and custom title.
+ */
+function google_cse_results() {
+  google_cse_results_set_title();
+  if (variable_get('google_cse_results_display', 'here') == 'here') {
+    print theme('page', theme('google_cse_results'));
+  } else {
+    $results = _google_cse_get_search_results();
+    print theme('page', theme('google_cse_xml_results', $results));
+  }
+}
+
+/**
+ * Return the Google CSE tab title, either a setting or a translation.
+ */
+function google_cse_results_tab() {
+  return ($var = variable_get('google_cse_results_tab', '')) ? $var : t('Google');
+}
+
+/**
+ * Return the Google CSE page title, either a setting or a translation.
+ */
+function google_cse_results_set_title() {
+  drupal_set_title(($var = variable_get('google_cse_results_title', '')) ? check_plain($var) : t('Search'));
+}
+
+/**
+ * Implementation of hook_perm().
+ */
+function google_cse_perm() {
+  return array('search Google CSE');
+}
+
+/**
+ * Returns an array of any advanced settings which have been set.
+ */
+function google_cse_advanced_settings() {
+  global $language;
+  $settings = array();
+  foreach (array('cr', 'gl', 'hl', 'ie', 'lr', 'oe', 'safe') as $parameter) {
+    if ($setting = variable_get("google_cse_$parameter", '')) {
+      $settings[$parameter] = $setting;
+    }
+  }
+  if (variable_get('google_cse_locale_hl', '')) {
+    $settings['hl'] = $language->language;
+  }
+  if (variable_get('google_cse_locale_lr', '')) {
+    $settings['lr'] = 'lang_'. $language->language;
+  }
+  return $settings;
+}
+
+/**
+ * Implementation of hook_init().
+ */
+function google_cse_init() {
+  global $language;
+  drupal_add_css(drupal_get_path('module', 'google_cse') .'/google_cse.css');
+  drupal_add_js(array('googleCSE' => array('language' => $language->language)), 'setting', 'footer');
+  drupal_add_js(drupal_get_path('module', 'google_cse') .'/google_cse.js', 'module', 'footer');
+}
+
+/**
+ * Returns SiteSearch options form item.
+ */
+function google_cse_sitesearch_form(&$form) {
+  if ($sites = preg_split('/[\n\r]+/', variable_get('google_cse_sitesearch', ''), -1, PREG_SPLIT_NO_EMPTY)) {
+    $type = (count($sites) > 1) ? 'select' : 'radios';
+    foreach ($sites as $site) {
+      $site = preg_split('/[\s]+/', trim($site), 2, PREG_SPLIT_NO_EMPTY);
+      if ($type == 'radios') {
+        // Unlike select options, we need to HTML-escape radios options (both return values and display values).
+        $options[check_plain($site[0])] = isset($site[1]) ? check_plain($site[1]) : t('Search %sitesearch', array('%sitesearch' => $site[0]));
+      }
+      else {
+        // Select options will be HTML-escaped for us.
+        $options[$site[0]] = isset($site[1]) ? $site[1] : t('Search !sitesearch', array('!sitesearch' => $site[0]));
+      }
+    }
+    $form['sitesearch'] = array(
+      '#type' => $type,
+      '#options' => array(
+        '' => ($var = variable_get('google_cse_sitesearch_option', '')) ? (($type == 'radios') ? check_plain($var) : $var) : t('Search the web'),
+      ) + $options,
+      '#default_value' => google_cse_sitesearch_default(),
+    );
+    if ($type == 'select' && isset($form['sa'])) {
+      $form['sa']['#weight'] = 10;
+    }
+  }
+}
+
+/**
+ * Return SiteSearch default value.
+ */
+function google_cse_sitesearch_default() {
+  return isset($_GET['sitesearch']) ? $_GET['sitesearch'] : (variable_get('google_cse_sitesearch_default', 0) ? array_shift(preg_split('/[\s]+/', variable_get('google_cse_sitesearch', ''))) : '');
+}
+
+
+/* Queries Google to get XML results, and parses them into an array
+ * of search items -- see theme_google_cse_result_items() function below
+ * for documentation of this array.
+ */
+function _google_cse_get_search_results() {
+
+  // formulate the query for Google
+
+  $url = 'http://www.google.com/search';
+
+  $query = array(
+    'q' => $_GET['refinement'] == '' ? $_GET['query'] : $_GET['query'] . ' more:' . $_GET['refinement'],
+    'start' => $_GET['start'],
+    'num' => variable_get('google_cse_results_num', 10),
+    'client' => 'google-csbe',
+    'output' => 'xml_no_dtd',
+    'cx' => variable_get('google_cse_cx', ''),
+    'sitesearch' => $_GET['sitesearch'],
+    ) + google_cse_advanced_settings();
+
+  // get the XML results
+
+  $res = drupal_http_request($url . '?' . drupal_query_string_encode($query));
+
+  if ($res->code != '200') {
+    return array();
+  }
+
+  // parse results and return them
+  return _google_cse_parse_xml_results($res->data);
+
+}
+
+
+/*
+ * Internal function: parses the XML results returned by Google into
+ * a results array (see function theme_google_cse_result_items for doc)
+ */
+function _google_cse_parse_xml_results($data) {
+
+  global $google_cse_elem;
+  global $google_cse_item_index;
+  global $google_cse_results;
+  global $google_cse_in_facet_item;
+
+  $google_cse_in_facet_item = FALSE;
+
+  $xml_p = drupal_xml_parser_create($data);
+  xml_set_element_handler($xml_p, '_google_cse_xml_elem_start',
+			   '_google_cse_xml_elem_end');
+  xml_set_character_data_handler($xml_p, '_google_cse_xml_character_data');
+
+  $google_cse_elem = '';
+  $google_cse_item_index = 0;
+  $google_cse_results = array('items' => array());
+
+  if (!xml_parse($xml_p, $data, 1)) {
+    return array();
+  }
+
+  return $google_cse_results;
+}
+
+/*
+ * Internal function for handling XML elements when parsing Google results.
+ */
+function _google_cse_xml_elem_start($parser, $name, $attribs = array()) {
+  global $google_cse_elem;
+  global $google_cse_item_index;
+  global $google_cse_results;
+  global $google_cse_partial_data;
+  global $google_cse_in_facet_item;
+  global $google_cse_curr_facet_label;
+
+  // we only care about some of the XML elements in the Google results
+  // See http://www.google.com/coop/docs/cse/resultsxml.html for doc
+
+  switch ($name) {
+  case 'RES':
+    // attributes give the from/to indices of this results set
+    $google_cse_results['from'] = $attribs['SN'];
+    $google_cse_results['to'] = $attribs['EN'];
+    break;
+
+  case 'M':
+    // gives approx total number of results of search
+    $google_cse_elem = 'total';
+    break;
+
+  case 'R':
+    // starts a new search result item
+    $google_cse_item_index = count($google_cse_results['items']);
+    $google_cse_results['items'][$google_cse_item_index] = array();
+    break;
+
+  case 'FACETITEM':
+    // starts a new facet item
+    $google_cse_in_facet_item = TRUE;
+    break;
+
+  case 'LABEL':
+    $google_cse_elem = $google_cse_in_facet_item ? 'facetlabel' : 'label';
+    break;
+
+  case 'ANCHOR_TEXT':
+    $google_cse_elem = 'anchor_text';
+    break;
+
+  // The rest of these are components of search result items
+
+  case 'U':
+    $google_cse_elem = 'url';
+    break;
+
+  case 'T':
+    $google_cse_elem = 'title';
+    break;
+
+  case 'CRAWLDATE':
+    $google_cse_elem = 'crawldate';
+    break;
+
+  case 'S':
+    $google_cse_elem = 'excerpt';
+    break;
+
+  case 'LANG':
+    $google_cse_elem = 'lang';
+    break;
+
+  case 'HN':
+    $google_cse_elem = 'crowd_host';
+    break;
+
+  // anything else: make sure we are not getting data now!
+  default:
+    $google_cse_elem = '';
+    break;
+
+  }
+
+  // this flag makes sure the character data handler gets reset
+  $google_cse_partial_data = 0;
+}
+
+/*
+ * Internal function for handling XML elements when parsing Google results
+ */
+function _google_cse_xml_elem_end($parser, $name) {
+  global $google_cse_elem;
+  global $google_cse_item_index;
+  global $google_cse_partial_data;
+  global $google_cse_in_facet_item;
+
+  // close out the element and make sure character data handler gets reset
+  $google_cse_elem = '';
+  $google_cse_partial_data = 0;
+  switch ($name) {
+    case 'FACETITEM':
+      $google_cse_in_facet_item = FALSE;
+      break;
+  }
+}
+
+
+/*
+ * Internal function for handling XML elements when parsing Google results
+ */
+function _google_cse_xml_character_data($parser, $data) {
+  global $google_cse_elem;
+  global $google_cse_item_index;
+  global $google_cse_results;
+  global $google_cse_partial_data;
+  global $google_cse_curr_facet_label;
+
+  if ($google_cse_elem == 'total') {
+    // handle the "total" element
+    if (!$google_cse_partial_data) {
+      $google_cse_results['total'] = '';
+    }
+    $google_cse_results['total'] .= $data;
+
+  } else if ($google_cse_elem == 'facetlabel') {
+    if (!$google_cse_partial_data) {
+      $google_cse_curr_facet_label = '';
+    }
+    $google_cse_curr_facet_label .= html_entity_decode($data);
+
+  } else if ($google_cse_elem == 'anchor_text') {
+    if (!$google_cse_partial_data) {
+      $google_cse_results['labels'][$google_cse_curr_facet_label] = '';
+    }
+    $google_cse_results['labels'][$google_cse_curr_facet_label] .= html_entity_decode($data);
+    
+  } else if (array_search($google_cse_elem,
+			   array('url', 'title', 'crawldate',
+				  'excerpt', 'lang', 'crowd_host')) !== FALSE) {
+
+    // handle the item sub-elements
+    if (!$google_cse_partial_data) {
+      $google_cse_results['items'][$google_cse_item_index][$google_cse_elem] = '';
+    }
+
+    $google_cse_results['items'][$google_cse_item_index][$google_cse_elem] .= html_entity_decode($data);
+
+  }
+
+  // sometimes this gets called multiple times within the same element,
+  // due to line breaks or whatever, so make sure we append data
+  $google_cse_partial_data = 1;
+}

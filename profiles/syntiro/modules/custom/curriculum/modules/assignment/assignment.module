@@ -1,0 +1,1305 @@
+<?php
+
+// $Id: assignments.module,v 1.0 2011/08/08 Exp $
+
+/**
+ * @file
+ * This module implements the assign functinality
+ *
+ * Assign Functionality is available to all with Create curriculum
+ * permissions and is associated with all with view assignement permissions
+ */
+
+/**
+ * Implementation of hook_menu().
+ */
+function assignment_menu() {
+
+    $items = array();
+    //admin settings
+    $items['admin/settings/assignment'] = array(
+        'title' => 'Assignment Settings',
+        'page callback' => 'drupal_get_form',
+        'page arguments' => array('assignment_settings_form'),
+        'access arguments' => array('administer assignments'),
+        'type' => MENU_NORMAL_ITEM,
+    );
+    // View Assigned Members page
+    $items['assignment/list/%node/%'] = array(
+        'page callback' => 'assigned_members_page',
+        'access callback' => 'assignment_access',
+        'access arguments' => array(2, 'create curriculum content'),
+        'file' => 'assignment_page.inc',
+        'file path' => drupal_get_path('module', 'assignment'). '/includes',
+        );
+
+    // Assigned Members Delete page
+    $items['assignment/delete/%'] = array(
+        'page callback' => 'drupal_get_form',
+        'page arguments' => array('assigned_members_delete_form'),
+        'access arguments' => array('create curriculum content'),
+        'file' => 'assignment_page.inc',
+        'file path' => drupal_get_path('module', 'assignment'). '/includes',
+    );
+
+    //Ajax callback to delete Assigned Community.
+    $items['assignment/group/delete/%'] = array(
+        'page callback' => 'assigned_group_delete_form',
+        'access arguments' => array('create curriculum content'),
+        'file' => 'assignment_page.inc',
+        'file path' => drupal_get_path('module', 'assignment'). '/includes',
+    );
+
+    // Assigned Members reassign page
+    $items['assignment/reassign/%'] = array(
+        'page callback' => 'drupal_get_form',
+        'page arguments' => array('assigned_members_reassign_form'),
+        'access arguments' => array('create curriculum content'),
+        'file' => 'assignment_page.inc',
+        'file path' => drupal_get_path('module', 'assignment'). '/includes',
+    );
+
+    // Assigned Members ajax-reassign page
+    $items['assignment/reassign/info/%'] = array(
+        'page callback' => 'assigned_members_reassign',
+        'access arguments' => array('create curriculum content'),
+        'file' => 'assignment_page.inc',
+        'file path' => drupal_get_path('module', 'assignment'). '/includes',
+    );
+
+    // Assigned Members ajax-reassign page
+    $items['assignment/feedback/post'] = array(
+        'page callback' => 'assignment_feedback_post',
+        'access arguments' => array('create curriculum content'),
+        'file' => 'assignment_reports.inc',
+        'file path' => drupal_get_path('module', 'assignment'). '/includes',
+    );
+
+    // Assigned Members reassign page
+    $items['assignment/feedback/%node/%'] = array(
+        'page callback' => 'drupal_get_form',
+        'page arguments' => array('assignment_feedback'),
+        'access arguments' => array('create curriculum content'),
+        'file' => 'assignment_reports.inc',
+        'file path' => drupal_get_path('module', 'assignment'). '/includes',
+    );
+    // Assigned Members ajax-delete page
+    $items['assignment/delete/info/%'] = array(
+        'page callback' => 'assigned_members_delete',
+        'access arguments' => array('create curriculum content'),
+        'file' => 'assignment_page.inc',
+        'file path' => drupal_get_path('module', 'assignment'). '/includes',
+    );
+
+    $items['assignment/list/%node/%/members'] = array(
+        'title' => 'Members',
+        'type' => MENU_DEFAULT_LOCAL_TASK,
+        'weight' => -10,
+    );
+    // View Assigned Groups page
+    $items['assignment/list/%node/%/groups'] = array(
+        'title' => 'Community',
+        'page callback' => 'assigned_groups_page',
+        'access callback' => 'assignment_access',
+        'access arguments' => array(2, 'create curriculum content'),
+        'description' => 'Assigned',
+        'file' => 'assignment_page.inc',
+        'file path' => drupal_get_path('module', 'assignment'). '/includes',
+        'type' => MENU_LOCAL_TASK,
+        'weight' => -7,
+    );
+    $items['bridge/myassignments'] = array(
+        'title' => 'Assignments',
+        'page callback' => 'assignment_view',
+        'access arguments' => array('view assignments'),
+       // 'type' => MENU_LOCAL_TASK,
+        'file' => 'assignment_page.inc',
+        'file path' => drupal_get_path('module', 'assignment'). '/includes',
+    );
+    // Assinment list pending tab
+    $items['bridge/myassignments/pending'] = array(
+        'title' => 'Pending',
+       // 'access arguments' => array('view assignments'),
+        'type' => MENU_DEFAULT_LOCAL_TASK,
+      //  'file' => 'assignment_page.inc',
+      //  'file path' => drupal_get_path('module', 'assignment'). '/includes',
+        'weight' => -2
+    );
+    // Assignment list completed tab
+    $items['bridge/myassignments/completed'] = array(
+        'title' => 'Completed',
+        'page callback' => 'assignment_view',
+        'access arguments' => array('view assignments'),
+        'type' => MENU_LOCAL_TASK,
+        'file' => 'assignment_page.inc',
+        'file path' => drupal_get_path('module', 'assignment'). '/includes',
+        'weight' => -1
+    );
+    // Auto-completes available user names & removes duplicates.
+    $items['assignment/users-name-autocomplete/%'] = array(
+        'title' => 'Assignment autocomplete',
+        'page callback' => 'assignment_autocomplete',
+        'access arguments' => array('create curriculum content'),
+        'type' => MENU_CALLBACK,
+        'file' => 'assignment_form.inc',
+        'file path' => drupal_get_path('module', 'assignment'). '/includes',
+    );
+    // Auto-completes available user names & removes duplicates.
+    $items['assignment/report-users-autocomplete/%node/%'] = array(
+        'title' => 'Assignment autocomplete',
+        'page callback' => 'report_users_autocomplete',
+        'access arguments' => array('create curriculum content'),
+        'type' => MENU_CALLBACK,
+        'file' => 'assignment_reports.inc',
+        'file path' => drupal_get_path('module', 'assignment'). '/includes',
+    );
+    // Individual Assignment Page
+    $items['assignment/view/%'] = array(
+        'title' => 'Assignment',
+        'page callback' => 'assignment_view_own',
+        'page arguments' => array(2, 3, FALSE),
+        'access callback' => '_assignment_view_own_access',
+        'access arguments' => array(2),
+        'file' => 'assignment_view_own.inc',
+        'file path' => drupal_get_path('module', 'assignment'). '/includes',
+        'type' => MENU_CALLBACK,
+    );
+
+    $items['assignment/reports/%node/%'] = array(
+        'title' => 'Reports - Topic Level',
+        'page callback' => 'assignment_report',
+        'page arguments' => array(2),
+        'access callback' => 'node_access',
+        'access arguments' => array('update', 2),
+        'type' => MENU_CALLBACK,
+        'file' => 'assignment_reports.inc',
+        'file path' => drupal_get_path('module', 'assignment'). '/includes',
+    );
+    $items['assignment/reports/%node'] = array(
+        'title' => 'Reports - Playlist Level',
+        'page callback' => 'assignment_report',
+        'page arguments' => array(2),
+        'access callback' => 'node_access',
+        'access arguments' => array('update', 2),
+        'type' => MENU_CALLBACK,
+        'file' => 'assignment_reports.inc',
+        'file path' => drupal_get_path('module', 'assignment'). '/includes',
+    );
+    $items['assignment/reports/list'] = array(
+        'title' => 'Reports',
+        'page callback' => 'assignment_report_list',
+        'access arguments' => array('create curriculum content'),
+        'type' => MENU_CALLBACK,
+        'file' => 'assignment_reports.inc',
+        'file path' => drupal_get_path('module', 'assignment'). '/includes',
+    );
+    $items['check/user'] = array(
+        'page callback' => 'check_user',
+        'access arguments' => array('access content'),
+    );
+    // Assignment block - ajax load
+     $items['assignment/block'] = array(
+       'page callback' => 'assignment_block_ajax',
+       'access arguments' => array('view assignments'),
+       'file' => 'assignment_page.inc',
+       'file path' => drupal_get_path('module', 'assignment'). '/includes',
+       'type' => MENU_CALLBACK,
+     );
+     // Assignment listing - ajax load
+     $items['assignment/listing'] = array(
+       'page callback' => 'assignment_listing_ajax',
+       'access arguments' => array('view assignments'),
+       'type' => MENU_CALLBACK,
+       'file' => 'assignment_page.inc',
+       'file path' => drupal_get_path('module', 'assignment'). '/includes',
+     );
+      // Assignment listing - ajax load
+     $items['assignment/listing/completed'] = array(
+       'page callback' => 'assignment_listing_ajax',
+       'access arguments' => array('view assignments'),
+       'type' => MENU_CALLBACK,
+       'file' => 'assignment_page.inc',
+       'file path' => drupal_get_path('module', 'assignment'). '/includes',
+     );
+    $items['assignment/reports/ajax/list'] = array(
+        'title' => 'Reports',
+        'page callback' => 'assignment_report_list_ajax',
+        'access arguments' => array('create curriculum content'),
+        'type' => MENU_CALLBACK,
+        'file' => 'assignment_reports.inc',
+        'file path' => drupal_get_path('module', 'assignment'). '/includes',
+    );
+    return $items;
+}
+
+/**
+ * Implementation of hook_perm().
+ *
+ * @return
+ *    Array - 'create assignment','view assignments', 'administer assignments'.
+ *
+ */
+function assignment_perm() {
+    return array('create assignment', 'view assignments', 'administer assignments', 'assign assignments');
+}
+
+/**
+ * Setting access for assignment view own page.
+ *
+ * @return
+ *    TRUE if permission is 'view assignments', 'administer assignments' else returns FALSE
+ *
+ */
+function _assignment_view_own_access($st_id) {
+    // Only Administrators and Users with assignment entry will have access to the Assignment pages
+    global $user;
+    $uid = $user->uid;
+    $own_assignment_flag = own_assignment($st_id, $uid);
+    $teacherof_assignment_flag = own_assignment($st_id, $uid, TRUE);
+
+    if (user_access('administer assignments')) {
+        return TRUE;
+    } else if (user_access('view assignments') && $own_assignment_flag) {
+        return TRUE;
+    } else if (user_access('assign assignments') && $teacherof_assignment_flag) {
+        return TRUE;
+    }
+    else {
+        return FALSE;
+    }
+
+    return TRUE;
+}
+
+/**
+ * Check for assignment permission
+ *
+ * @param $st_id
+ *  It contains subtopic id
+ *
+ * @param $uid
+ *  It contains user id
+ *
+ * @param $flag
+ *  (optional) False, If true means teacher able to view, false means student able to view
+ *
+ * @return
+ *  It contains true or false
+ *
+ *
+ */
+function own_assignment($st_id, $uid, $flag = FALSE) {
+  $from_to = empty($flag)?' a.to_uid ':' a.from_uid ';
+  if (db_result(db_query("SELECT a.st_id FROM {assignment} a WHERE " . $from_to . " = %d AND a.st_id = %d", $uid, $st_id))) {
+      return TRUE;
+  }
+  return FALSE;
+}
+
+function assignment_access($node, $access) {
+    // check if that user have an assign permission and that curriculum is published
+    global $user;
+    return TRUE;
+    if (user_access($access) && $node->field_published[0]['value'] == 1 && $node->uid == $user->uid || user_access("administrator")) {
+        return TRUE;
+    }
+    return FALSE;
+}
+
+/**
+ * Implementation of hook_form_alter().
+ * @param $form
+ * @param $form_state
+ * @param $form_id
+ */
+function assignment_form_alter(&$form, &$form_state, $form_id) {
+    
+    global $base_url;
+    //echopre($form_id);
+    switch ($form_id) {
+        case 'assignment_form':
+          // For loading popup select mulitple user in pag
+          drupal_add_js(array('ed_search_userselect' => array()), 'setting');
+          if(is_numeric(arg(2))){
+            $form['#redirect'] = 'node/' . arg(2);
+          }
+          else{
+            $form['#redirect'] = 'node/' . arg(1);
+          }
+        break;
+        //Alter the form elements for Assignment contact form in Right side block of Assignment view page.
+        case 'privatemsg_new':
+            /* Get previous path to check whether the previous page is Assignment view page. */
+            $path = explode("/", $_SERVER['HTTP_REFERER']);
+            if ($path[3] == 'assignment' && $path[4] == 'view') {
+                $query = db_fetch_array(db_query("SELECT link, st_id FROM {assignment} WHERE aid = %d", $path[5]));
+                //Getting Assignment title for setting default subject of message form
+                if (is_numeric($query['nid'])) {
+                    $nodeobj = node_load($query['nid']);
+                    $res = $nodeobj->title;
+                } else {
+                    $res = db_result(db_query("SELECT title FROM {curriculum_topics_assets} WHERE id = %d", $query['st_id']));
+                }
+                $form['privatemsg']['subject']['#default_value'] = t(variable_get('assignment_subject', ''), array('!title' => $res));
+            }
+        break;
+        case 'assignment_feedback':
+          $form['actions']['#prefix']= '<div class="button-main">';
+          $form['actions']['#suffix'] = '</div>';
+          $form['actions']['cancel']['#prefix'] = '<span class="btn-center">';
+          $form['actions']['cancel']['#suffix'] = '</span>';
+        break;
+        case 'assigned_members_reassign_form':
+          $form['description']['#prefix'] = '<div class="result"><div class="confirm-text">';
+          $form['description']['#suffix'] = '</div></div>';
+          $form['actions']['#prefix']= '<div class="button-main">';
+          $form['actions']['#suffix'] = '</div>';
+          $form['actions']['cancel']['#prefix']= '<span class="btn-center">';
+          $form['actions']['cancel']['#suffix'] = '</span>';
+        break;
+        case 'assigned_members_delete_form':
+          $form['description']['#prefix'] = '<div class="result"><div class="confirm-text">';
+          $form['description']['#suffix'] = '</div></div>';
+          $form['actions']['#prefix']= '<div class="button-main">';
+          $form['actions']['#suffix'] = '</div>';
+          $form['actions']['cancel'] = array(
+            '#type' => 'button',
+            '#weight' => 70,
+            '#value' => t('No'),
+            );
+          //$form['actions']['cancel']['#prefix']= '<span class="btn-center">';
+          //$form['actions']['cancel']['#suffix'] = '</span>';
+        break;
+        case 'assigned_group_delete':
+          $form['#prefix'] = '<div class="group-result">';
+          $form['#suffix'] = '</div>';
+          $form['description']['#prefix'] = '<div class="popup-text">';
+          $form['description']['#suffix'] = '</div>';
+          $form['actions']['#prefix']= '<div class="button-main">';
+          $form['actions']['#suffix'] = '</div>';
+          $form['actions']['cancel'] = array(
+            '#type' => 'button',
+            '#weight' => 70,
+            '#value' => t('No'),
+            );
+        break;
+    }
+}
+
+/**
+ * Implementation of hook_block().
+ * @param $op
+ * @param $delta
+ * @return block data
+ */
+function assignment_block($op = 'list', $delta = 0) {
+  module_load_include('inc', 'assignment', 'includes/assignment_page');
+  module_load_include('inc', 'assignment', 'includes/assignment_common_block');
+  if ($op == 'list') {
+    $blocks[0]['info'] = t('Assigned to');
+    $blocks[1]['info'] = t('Assigned Members');
+    $blocks[2]['info'] = t('Assigned Groups');
+    $blocks[3]['info'] = t('Assignment Report Block');
+    return $blocks;
+  }
+  if ($op == 'view') {
+    switch ($delta) {
+      case 0:
+        // For assign to page only specific block will display
+        $block['subject'] = t('Assigned to');
+        $block['content'] = 'Hi.';
+        break;
+      case 1:
+        $block['subject'] = t('');
+        $block['content'] = assigned_member();
+        break;
+      case 2:
+        $block['subject'] = t('');
+        $block['content'] = assigned_group();
+        break;
+      case 3:
+        $block['subject'] = t('');
+        $node = node_load(arg(1));
+        if (node_access('update', $node) && count_assignments(arg(1)) > 0 && arg(0) == 'node' && $node->type == 'curriculum'  && is_null(arg(2)) && arg(0) != 'review_listing'  ) {
+
+          $block['content'] = assignment_report_block();
+        }
+        break;
+    }
+    return $block;
+  }
+}
+
+
+
+
+/**
+ * Implementation of hook_theme().
+ */
+function assignment_theme() {
+  return array(
+      'assign_form_theme' => array(
+          'arguments' => array('form' => NULL),
+      ),
+      'assigned_member' => array(
+          'arguments' => array('form' => NULL),
+      ),
+      'assigned_member_block' => array(
+          'template' => 'templates/assigned-member-block',
+          'arguments' => array('results' => NULL),
+      ),
+      'assignment_listing' => array(
+          'template' => 'templates/assignment-listing',
+          'arguments' => array('results' => NULL),
+      ),
+      'assigned_group' => array(
+          'arguments' => array('form' => NULL),
+      ),
+      'assigned_group_block' => array(
+          'template' => 'templates/assigned-group-block',
+          'arguments' => array('results' => NULL),
+      ),
+      'assignment_view' => array(
+          'template' => 'templates/assignment-view',
+          'arguments' => array('results' => NULL),
+      ),
+      'message_teacher' => array(
+          'template' => 'templates/message-right-side-blocks',
+          'arguments' => array('results' => NULL),
+      ),
+      //assignment-report-chart and assignment-report-block templates
+      'assignment_report_chart' => array(
+          'template' => 'templates/assignment-report-chart',
+          'arguments' => array('results' => NULL),
+      ),
+      'assignment_report_view' => array(
+          'template' => 'templates/assignment-report-view',
+          'arguments' => array('results' => NULL),
+      ),
+      'assignment_report_block' => array(
+          'template' => 'templates/assignment-report-block',
+          'arguments' => array('results' => NULL),
+      ),
+      'assigned-members-row' => array(
+          'template' => 'templates/assigned-members-row',
+          'arguments' => array('row' => NULL),
+      ),
+      'assigned-members' => array(
+          'template' => 'templates/assigned-members',
+          'arguments' => array('content' => NULL, 'content1' => NULL, 'content2' => NULL, 'content3' => NULL),
+      ),
+      'assigned-groups-row' => array(
+          'template' => 'templates/assigned-groups-row',
+          'arguments' => array('row' => NULL),
+      ),
+      'assigned-groups' => array(
+          'template' => 'templates/assigned-groups',
+          'arguments' => array('content' => NULL, 'content1' => NULL, 'content2' => NULL),
+      ),
+      'group_list_dropdown' => array(
+          'arguments' => array('values' => NULL),
+      ),
+      'status_list_dropdown' => array(
+          'arguments' => array('values' => NULL),
+      ),
+      'group_list_dropdown_level2' => array(
+          'arguments' => array('values' => NULL),
+      ),
+      'topic_list_dropdown_level2' => array(
+          'arguments' => array('values' => NULL),
+      ),
+      'assignment_report_list' => array(
+          'arguments' => array('values' => NULL),
+      ),
+  );
+}
+
+/**
+ *  Returns's count of assignments for a particular subtopic
+ *
+ */
+function is_assigned($nid, $subtopic_id) {
+    // @todo : Need to check status  is 1, so we do not include assignments that are removed
+    // @todo do we really need the AND operator. is it not enough to check the st_id (this is unique right?)
+    $count = db_result(db_query("SELECT count(*) FROM {assignment} WHERE  nid= %d AND st_id=%d", $nid, $subtopic_id));
+    return $count;
+}
+
+function is_assign($node, $node_subtopic) {
+
+    if ($node->field_published[0]['value'] == 1 && $node_subtopic->field_published[0]['value'] == 1) {
+        $count = db_result(db_query("select count(*) from assignment assign INNER JOIN curriculum_topics_assets cta ON
+assign.st_id = cta.id INNER join curriculum_topics ct on  cta.topic_id = ct.topic_id where assign.aid = 2", $nid, $node_subtopic->id));
+        if (is_numeric($count) > 0) {
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+
+/**
+ * Custom access for assignment functionaltiy
+ *
+ * Combination of drupal curriculum access and curriculum status
+ * The fucntionality can be accessed only by user with permissions to
+ * create curriculum and if the curriculum is published
+ *
+ */
+
+/**
+ * Implementation of hook_preprocess_theme().
+ * @function : Generate variables for assignment-listing.tpl.php.
+ * @return : Assignment content, Null content for Assignment, Assignment Label, Pager content.
+ */
+function assignment_preprocess_assignment_listing(&$vars) {
+ 
+    $vars['assignment_result'] = $vars['results'];
+    $vars['assigner_label'] = 'Assigned by: ';
+    //$vars['assignment_null'] = 'You have no assignments.';
+    // Assignment completed tab
+    if (arg(2) == 'completed') {
+       $pager_id = ASSIGNMENT_LISTING_COMPLETED_PAGER_ID;
+    }
+    else {
+       $pager_id = ASSIGNMENT_LISTING_PAGER_ID;
+    }
+    $vars['pager'] = theme('pager', NULL, 10, $pager_id); 
+}
+
+/**
+ * Implementation of hook_preprocess_theme().
+ * @function : Generate variables for assignment-view.tpl.php.
+ * @return : Assignment body, Null content for Assignment, Compeletion status form.
+ */
+function assignment_preprocess_assignment_view(&$vars) {
+    $vars['content'] = $vars['results']['content'];
+    $vars['iframe_src'] = $vars['results']['iframe_src'];
+    $vars['completion_form'] = $vars['results']['completion_form'];
+    $vars['docs_link'] = $vars['results']['docs_link'];
+    $vars['content_null'] = 'Assignment body is empty.';
+    $vars['message_teacher_list'] = $vars['results']['message_teacher_list'];
+    $vars['original_link'] = $vars['results']['original_link'];
+}
+
+/*
+ * Constructing overall page into form
+ *
+ *  @return
+ *      It returns the overall form in the array structure
+ */
+function assigned_members_form($form_state, $user_name_arr) {
+
+    global $base_url;
+    $form = array();
+
+    if (count($user_name_arr) != 0) {
+        foreach ($user_name_arr as $item) {
+            if ($item['assign_status'] == 1) {
+                $form['field'][$item['uid']]["uid[" . $item['uid'] . "]"] = array(
+                    '#type' => 'checkbox',
+                    '#prefix' => '<label class="element-invisible" for=check-' .$item["uid"] .'>check-' . $item['uid'] .'</label>',
+                    '#id' => 'check-' . $item['uid'],
+                );
+            }
+            $form['field'][$item['uid']]["name" . $item['uid']] = array(
+                '#type' => 'markup',
+                '#id' => 'check-' . $item['uid'],
+                '#value' => $item['name'],
+            );
+            $form['field'][$item['uid']]['image' . $item['uid']] = array(
+                '#type' => 'markup',
+                '#id' => 'check-' . $item['uid'],
+                '#value' => $item['image'],
+            );
+            if ($item['assign_status'] == 1) {
+                $form['field'][$item['uid']]['contact' . $item['uid']] = array(
+                    '#type' => 'markup',
+                    '#id' => 'check-' . $item['uid'],
+                    '#value' => $item['contact'],
+                );
+            }
+            if ($item['assign_status'] == 2) {
+                $form['field'][$item['uid']]['undo' . $item['uid']] = array(
+                    '#type' => 'markup',
+                    '#id' => 'check-' . $item['uid'],
+                    '#value' => $item['undo'],
+                );
+                $form['field'][$item['uid']]['delete' . $item['uid']] = array(
+                    '#type' => 'markup',
+                    '#id' => 'check-' . $item['uid'],
+                    '#value' => $item['delete'],
+                );
+            }
+        }
+    } else {
+        $form["null_content"] = array(
+            '#type' => 'markup',
+            '#value' => '<div class="null-content">This topic has no associated members, ' . l('Click here', 'assignment/assign/' . arg(2) . '/' . arg(3)) . ' to assign now! </div>',
+        );
+    }
+    $form['filter_by'] = array(
+        '#value' => '<div class="selected-dropdown"><div class="selected-list"><div class="seleted-option"><a href="javascript:;">All</a></div></div><div id="assign-available-option" style="display: none;"><div id="3"><a href="javascript:;">All</a></div><div id="1"><a href="javascript:;">Assigned</a></div><div id="2"><a href="javascript:;">Unassigned</a></div></div></div>',
+    );
+
+    $form['own_validate_submit'] = array(
+        '#type' => 'submit',
+        '#value' => t('UnAssign'),
+        '#prefix' => '<div class="un-assign-btn">',
+        '#suffix' => '</div>',
+    );
+
+    $form['#theme'] = 'assigned_member';
+    $form['#validate'][] = 'assigned_members_form_validate';
+    $form['#submit'][] = 'assigned_members_form_submit';
+
+    return $form;
+}
+
+/**
+ * @function : Will do the unassign functionality
+ */
+function assigned_members_form_submit($form, &$form_state) {
+  global $base_url, $user;
+  if ($form_state['clicked_button']['#value'] == 'UnAssign') {
+    // Will do the unassign process for multiple users
+    foreach ($form['#post']['uid'] as $key => $val) {
+      db_query("UPDATE assignment_assign SET assign_status = %d WHERE st_id = %d and uid = %d", 2, arg(3), $key);
+      // start:: for user points calculation on unassign an assignment
+      // user  defined hook: hook_eb_points;
+      $unassign = array();
+      $unassign['type']  = 'assignment';
+      $unassign['st_id']  = arg(3);
+      $unassign['to_uid']  = $key;
+      module_invoke_all('eb_points', 'unassign', $unassign);
+      // stop                    
+      $temp_user = user_load(array('uid' => $key));
+      $rec[$temp_user->uid] = $temp_user;
+      $result = db_fetch_array(db_query("SELECT asset, title FROM assignment_assign aa INNER JOIN curriculum_topics_assets cta ON aa.st_id = cta.id WHERE st_id = %d GROUP BY aa.st_id", arg(3)));
+      if(is_numeric($result['asset'])) {
+        $node_obj = node_load($result['asset']);
+        $title = $node_obj->title;
+      }
+      else {
+        $title = $result['title'];
+      }
+      // Will delete the unassigned user in hearbeat_activity table
+      if (module_exists('heartbeat')) {
+        $query = heartbeat_ids(arg(3), 'heartbeat_assign_student_assignment', $key);
+        if (db_affected_rows() && function_exists("_heartbeat_activity_delete")) {
+          while($row = db_fetch_object($query)) {
+            _heartbeat_activity_delete($row->uaid);
+          }
+        }
+        // messsage heartbeat
+        $message_id = 'heartbeat_unassign_student_assignment';
+        $variables = array(
+            '@teacher-name' => function_exists("eb_others_popup_link") ? eb_others_popup_link($user->name, 'user/' . $user->uid) : NULL,
+            '@assignment-name' => $title,
+        );
+        heartbeat_api_log($message_id, $key, $user->uid, arg(3), 0, $variables);
+      }
+    }
+    // to display name if single user, else given text will display in success message.
+    if (count($form['#post']['uid']) == 1) {
+      $user_obj = user_load($key);
+      $user_name = $user_obj->name;
+    }
+    else {
+      $user_name = 'Selected users';
+    }
+    if (is_array($rec) && (count($rec) > 0)) {
+      privatemsg_mail_send($rec, $user, t($user->name .' has  removed you from assignment '. $title), t($user->name .', has  removed you from assignment '. $title));
+      if (module_exists('cache_eb')) {
+        cache_clear_all("playlist_report_list:uid:" . $user->uid . ":", "cache_eb", TRUE);
+      }
+    }
+  }
+  drupal_set_message($user_name . " has been successfully unassigned. A message has been sent to the member.");
+}
+
+/**
+ * @function : Will get the users details and assign in the form.
+ */
+function assigned_members_page() {
+  //This function is called to get the selected users to be listed.
+  $user_name_arr = assigned_member(FALSE, FALSE, arg(3));
+  return drupal_get_form('assigned_members_form', $user_name_arr);
+}
+
+/**
+ * Implementation of theme_form().
+ * @function : Generate variables for assigned-members-row.tpl.php and assigned-member.tpl.php
+ * @return : Assigned and unassigned member details
+ */
+function theme_assigned_member($form) {
+  $output = NULL;
+  $output1 = drupal_render($form['own_validate_submit']);
+  $output2 = drupal_render($form['filter_by']);
+  $output3 = drupal_render($form['null_content']);
+  $row = '';
+  if (!empty($form['field'])) {
+    foreach ($form['field'] as $key => $val) {
+      if (is_numeric($key)) {
+        $mem_arr = array();
+        $mem_arr['chk'] = drupal_render($val['uid[' . $key . ']']);
+        $mem_arr['img'] = drupal_render($val['image' . $key]);
+        $mem_arr['name'] = drupal_render($val['name' . $key]);
+        $mem_arr['contact'] = drupal_render($val['contact' . $key]);
+        $mem_arr['reassign'] = drupal_render($val['undo' . $key]);
+        $mem_arr['delete'] = drupal_render($val['delete' . $key]);
+        $row .= theme('assigned-members-row', $mem_arr);
+        drupal_render($form['field'][$key]);
+      }
+    }
+  }
+  $rows = theme('assigned-members', $row, $output1, $output2, $output3);
+  $output .= $rows;
+  return $output . drupal_render($form);
+}
+
+/*
+ * Implementing hook_validate().
+ *
+ * It is used to validate the custom assigned members form
+ */
+function assigned_members_form_validate($form, &$form_state) {
+  if (!isset($form['field']['#post']['uid'])) {
+    // validation to check atleast one check box
+    form_set_error('', t("Select at least one member."));
+  }
+}
+
+/*
+ * Constructing overall page into form
+ *
+ *  @return
+ *  It returns the assigned groups form
+ */
+function assigned_groups_form($form_state, $user_group_arr) {
+  global $base_url;
+  $form = array();
+
+  //Set drupal message when Group deleted.
+  if($_GET['success'] == 'true') {
+    drupal_set_message("Select community has been deleted");
+    drupal_goto('assignment/list/' .arg(2) . '/' . arg(3). '/groups');
+  }
+  elseif($_GET['success'] == 'false'){
+    drupal_set_message("Please select atleast a community to delete.");
+    drupal_goto('assignment/list/' .arg(2) . '/' . arg(3). '/groups');
+  }
+
+  if (count($user_group_arr) != 0) {
+    foreach ($user_group_arr as $item) {
+      $form['field'][$item['gid']]["gid[" . $item['gid'] . "]"] = array(
+          '#type' => 'checkbox',
+          '#prefix' => '<label class="element-invisible" for=check-' .$item["gid"] .'>check-' . $item['gid'] .'</label>',
+          '#id' => 'check-' . $item['gid'],
+      );
+      $form['field'][$item['gid']]["hide[" . $item['gid'] . "]"] = array(
+          '#type' => 'hidden',
+          '#id' => 'group_id',
+          '#value' => $item['gid'],
+      );
+      $form['field'][$item['gid']]["title" . $item['gid']] = array(
+          '#type' => 'markup',
+          '#id' => 'check-' . $item['gid'],
+          '#value' => $item['title'],
+      );
+      $form['field'][$item['gid']]["desc" . $item['gid']] = array(
+          '#type' => 'markup',
+          '#id' => 'check-' . $item['gid'],
+          '#value' => $item['desc'],
+      );
+      $form['field'][$item['gid']]["members" . $item['gid']] = array(
+          '#type' => 'markup',
+          '#id' => 'check-' . $item['gid'],
+          '#value' => $item['members'],
+      );
+      $form['field'][$item['gid']]["dis" . $item['gid']] = array(
+          '#type' => 'markup',
+          '#id' => 'check-' . $item['gid'],
+          '#value' => $item['dis'],
+      );
+    }
+  }
+  else {
+    $form["null_content"] = array(
+        '#type' => 'markup',
+        '#value' => '<div class="null-content">This topic has no associated groups, Click <span class="font-bold">Assign More</span> to assign now! </div>',
+    );
+  }
+
+  $form['own_validate_submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Delete'),
+    '#prefix' => '<div class="un-assign-btn">',
+    '#suffix' => '</div>',
+  );
+  $form['#theme'] = 'assigned_group';
+  $form['#validate'][] = 'assigned_groups_form_validate';
+  $form['#submit'][] = 'assigned_groups_form_submit';
+  return $form;
+}
+
+/**
+ * @function :  Will delete the group in the assinged groups page.
+ * @param : $form
+ * @param : &$form_state
+ */
+function assigned_groups_form_submit($form, &$form_state) {
+  global $user;
+  if ($form_state['clicked_button']['#value'] == 'Delete') {
+    // Will do the delete process for multiple groups
+    foreach ($form['#post']['gid'] as $key => $val) {
+      $group_title = node_title($key);
+      $result = db_query("SELECT st_id, to_uid FROM assignment WHERE to_gid = %d", $key);
+      //Fetching the group details and deleting from assignment_assign table
+      if (db_affected_rows()) {
+        while ($result_exe = db_fetch_object($result)) {
+          $query = db_query("SELECT asset, title, aa.uid, aa.st_id FROM assignment_assign aa INNER JOIN curriculum_topics_assets cta ON aa.st_id = cta.id WHERE aa.st_id = %d AND aa.uid = %d GROUP BY aa.st_id", $result_exe->st_id, $result_exe->to_uid);
+          if (db_affected_rows()) {
+            $result_subtopic = db_fetch_array($query);
+            $temp_user = user_load($result_subtopic['uid']);
+            $rec[$temp_user->uid] = $temp_user;
+            if(is_numeric($result_subtopic['asset'])) {
+              $title = node_title($result_subtopic['asset']);
+            }
+            else {
+              $title = $result_subtopic['title'];
+            }
+              // messsage heartbeat
+            $message_id = 'heartbeat_delete_student_assignment';
+
+            $variables = array(
+            '@teacher-name' => l($user->name, 'user/' . $user->uid, array('attributes' => array('class' => 'popups'))),        '@assignment-name' => $title,
+            );
+            heartbeat_api_log($message_id, $result_subtopic['uid'], $user->uid, $result_subtopic['st_id'], 0, $variables);
+            if (is_array($rec) && (count($rec) > 0)) {
+              privatemsg_mail_send($rec, $user, t('Deletion: '.$title), t($user->name .', has  removed you from assignment '. $title . '<br> ' . l($group_title, 'node/' . $key, array('html' => TRUE)) .' group has been removed from the assignment'));              
+            }
+            // For assgined member record also deleted
+            db_query("DELETE FROM {assignment} WHERE to_gid = %d AND to_uid = %d AND st_id =%d", 0, $result_subtopic['uid'], $result_exe->st_id);
+          }
+          db_query("DELETE FROM {assignment_assign} WHERE st_id = %d AND uid = %d", $result_exe->st_id, $result_exe->to_uid);
+        }
+      }
+        //deleting from assignment table
+      db_query("DELETE FROM assignment WHERE to_gid = %d", $key);
+    }
+    // to display name if single user, else given text will display in success message.
+    if (count($form['#post']['gid']) == 1) {
+      foreach ($form['#post']['gid'] as $key => $val) {
+        $group_obj = node_load($key);
+        $group_name = $group_obj->title;
+      }
+    }
+    else {
+      $group_name = 'Selected groups';
+    }
+  }
+  drupal_set_message($group_name ." has been successfully deleted.");
+}
+
+/**
+ * @function : Will get the users details and assign in the form.
+ */
+function assigned_groups_page() {
+  //check whether the Delete button is clicked or not. If yes we need to show the Confirm form in popup.
+  if($_REQUEST['del_ass_group']){
+    $output = drupal_get_form('assigned_group_delete');
+  }
+  else{//Default Assigned Group page form.
+    // this function is called to get the selected groups to be listed.
+    $user_group_arr = assigned_group();
+    $output = drupal_get_form('assigned_groups_form', $user_group_arr);
+  }
+  return $output;
+}
+
+/**
+ * Implementation of theme_form().
+ * @function : Generate variables for assigned-members-row.tpl.php and assigned-member.tpl.php
+ * @return : Assigned and unassigned member details
+ */
+function theme_assigned_group($form) {
+  $output = '';
+  $output1 = drupal_render($form['own_validate_submit']);
+  $output2 = drupal_render($form['null_content']);
+  $row = '';
+  if (!empty($form['field'])) {
+    foreach ($form['field'] as $key => $val) {
+      if (is_numeric($key)) {
+        $group_arr = array();
+        $group_arr['chk'] = drupal_render($val['gid[' . $key . ']']);
+        $group_arr['hide'] = drupal_render($val['hide[' . $key . ']']);
+        $group_arr['title'] = drupal_render($val['title' . $key]);
+        $group_arr['desc'] = drupal_render($val['desc' . $key]);
+        $group_arr['members'] = drupal_render($val['members' . $key]);
+        $group_arr['dis'] = drupal_render($val['dis' . $key]);
+        $row .= theme('assigned-groups-row', $group_arr);
+        drupal_render($form['field'][$key]);
+      }
+    }
+  }
+  $rows = theme('assigned-groups', $row, $output1, $output2);
+  $output .= $rows;
+  return $output . drupal_render($form);
+}
+
+/*
+ * Implementing hook_validate().
+ *
+ * @function : It is used to validate the custom assigned members form
+ *
+ */
+function assigned_groups_form_validate($form, &$form_state) {
+    if (!isset($form['field']['#post']['gid'])) {
+        // validation to check atleast one check box
+        form_set_error('', t("Select at least one group."));
+    }
+}
+
+/**
+ * Implementation of hook_preprocess_theme().
+ * @function : Generate variables for assigned-member.tpl.php.
+ * @return : Assigned Member Details, Null content for Assigned Member, Pager content.
+ */
+function assignment_preprocess_assigned_member(&$vars) {
+    global $base_url;
+
+    $vars['assigned_result'] = $vars['results'];
+    //echopre($vars['assigned_result']);
+    $vars['assigned_member_null'] = 'This topic has no associated communities, ' . l('Click here', 'assignment/assign/' . arg(2) . '/' . arg(3) . ' to assign now! ');
+    //Pass disable attributes to that checkbox if that user is assigned
+    $vars['pager'] = theme('pager', NULL, 10, 0);
+}
+
+/**
+ * Implementation of hook_preprocess_theme().
+ * @function : Generate variables for assigned-group.tpl.php.
+ * @return : Assigned Group content, Null content for Assigned group, Pager content.
+ */
+function assignment_preprocess_assigned_group(&$vars) {
+    $vars['assigned_group_result'] = $vars['results'];
+    $vars['undo_assigned_group'] = l('Undo Assign', NULL);
+    $vars['assigned_group_null'] = 'This topic has no associated Communities, ' . l('Click here', 'assignment/assign/' . arg(2) . '/' . arg(3) .' to assign now! ');
+    $vars['pager'] = theme('pager', NULL, 10, 0);
+}
+
+/**
+ * Implementation of hook_preprocess_theme().
+ * @function : Generate variables for assignment-listing.tpl.php.
+ * @return : Assignment content, Null content for Assignment, Assignment Label, Pager content.
+ */
+function assignment_preprocess_assigned_member_block(&$vars) {
+    $vars['assignment_members_block'] = $vars['results'];
+    $vars['assignment_member_block_null'] = 'You have no assigned members.';
+    $vars['pager'] = theme('pager', NULL, $limit, 0);
+    $vars['more_link'] = $base_url . '/assignment/list/' . arg(2) . '/' . arg(3);
+    $vars['more_link_image'] = $base_url . '/' . drupal_get_path('theme', 'edubridge_fluid');
+}
+
+/**
+ * Implementation of hook_preprocess_theme().
+ * @function : Generate variables for assignment-listing.tpl.php.
+ * @return : Assignment content, Null content for Assignment, Assignment Label, Pager content.
+ */
+function assignment_preprocess_assigned_group_block(&$vars) {
+    global $base_url;
+    $vars['assignment_group_block'] = $vars['results'];
+    $vars['assignment_group_block_null'] = 'You have no assigned communities.';
+    $vars['undo_assigned_group'] = l('Undo Assign', NULL);
+    $vars['pager'] = theme('pager', NULL, $limit, 0);
+    $vars['more_link'] = $base_url . '/assignment/list/' . arg(2) . '/' . arg(3) . '/groups';
+    $vars['more_link_image'] = $base_url . '/' . drupal_get_path('theme', 'edubridge_fluid');
+}
+
+/**
+ * @function : admin setting to configure assignment mail
+ *
+ * admin url : admin/settings/recommend
+ */
+function assignment_settings_form() {
+    $form[] = array();
+    $form['assignment'] = array(
+        '#type' => 'fieldset',
+        '#title' => 'Assignment Setting',
+        '#collapsible' => TRUE,
+        '#collapsed' => FALSE,
+    );
+    $form['assignment']['assignment_subject'] = array(
+        '#type' => 'textfield',
+        '#title' => 'Subject',
+        '#default_value' => variable_get('assignment_subject', ''),
+    );
+    $form['assignment']['assignment_body'] = array(
+        '#type' => 'textarea',
+        '#title' => 'Body',
+        '#default_value' => variable_get('assignment_body', ''),
+    );
+    return system_settings_form($form);
+}
+
+function assignment_fapi_validation_rules() {
+  return array(
+    'char_1000' => array(
+      'callback' => 'assignment_view_own_validation_rule_name',
+      'error_msg' => 'Not more than 1000 characters',
+    ),
+    'check_user' => array(
+      'callback' => 'assignment_form_validation_check_empty',
+      'error_msg' => t('%field cannot be empty'),
+    ),
+    'check_community_assignment' => array(
+      'callback' => 'assignment_form_validation_check_community_assignment',
+      'error_msg' => t('Please select the %field'),
+    ),
+    'check_assign_subject' => array(
+      'callback' => 'assignment_form_validation_check_subject',
+      'error_msg' => t('%field cannot be empty'),
+    ),
+    'check_assign_body' => array(
+      'callback' => 'assignment_form_validation_check_body',
+      'error_msg' => t('%field cannot be empty'),
+    ),
+  );
+}
+
+function assignment_view_own_validation_rule_name($value) {
+    $trimstr = trim($value);
+    if (strlen($trimstr) <= 1000) {
+        return TRUE;
+    } else {
+        return FALSE;
+    }
+}
+
+function assignment_form_validation_check_empty($value) {
+  if(empty($value)) {
+    return FALSE;
+  }
+  else {
+    return TRUE;
+  }
+}
+
+//Validation function to check Community field.
+function assignment_form_validation_check_community_assignment($value) {
+  if(sizeof($value) < 0) {
+    return FALSE;
+  }
+  else {
+    return TRUE;
+  }
+}
+
+//Validation function to check Subject field.
+function assignment_form_validation_check_subject($value){
+  if($value == '' || $value == 'Subject'){
+    return FALSE;
+  }
+  else{
+    return TRUE;
+  }
+}
+
+//Validation function to check Subject field.
+function assignment_form_validation_check_body($value){
+  if($value == '' || $value == 'Drop your Instructions...'){
+    return FALSE;
+  }
+  else{
+    return TRUE;
+  }
+}
+
+function assignment_clientside_validation_rule_alter(&$js_rules, $element, $context) {
+  switch ($context['type']) {
+    case 'fapi':
+      if ($context['rule']['callback'] == 'assignment_view_own_validation_rule_name') {
+          _assignment_set_number($element['#name'], $element['#title'], $decimalpoint, &$js_rules);
+      }
+      if ($context['rule']['callback'] == 'assignment_form_validation_check_empty') {
+         _assignment_set_empty($element['#name'], $element['#title'], $decimalpoint, &$js_rules);
+      }
+      if ($context['rule']['callback'] == 'assignment_form_validation_check_community_assignment') {
+          $name = (isset($element['#multiple']) && $element['#multiple']) ? $element['#name'] . '[]' : $element['#name'];
+         _assignment_set_community_assign($name, $element['#title'], $decimalpoint, &$js_rules);
+      }
+      if ($context['rule']['callback'] == 'assignment_form_validation_check_subject') {
+         _assignment_check_subject($element['#name'], $element['#title'], $decimalpoint, &$js_rules);
+      }
+      if ($context['rule']['callback'] == 'assignment_form_validation_check_body') {
+         _assignment_check_body($element['#name'], $element['#title'], $decimalpoint, &$js_rules);
+      }
+      break;
+  }
+}
+
+function _assignment_set_number($name, $title, $decimalpoint, &$js_rules) {
+  drupal_add_js(drupal_get_path('module', 'assignment') . '/js/assignment_validation.js');
+  $title = variable_get('clientside_validation_prefix', '') . $title . variable_get('clientside_validation_suffix', '');
+  $js_rules[$name]['chars_count'] = TRUE;
+  $js_rules[$name]['messages']['chars_count'] = t('You can use only 1000 characters at !field.', array('!field' => $title));
+}
+
+
+function _assignment_set_empty($name, $title, $decimalpoint, &$js_rules){
+  drupal_add_js(drupal_get_path('module', 'assignment') . '/js/assignment_validation.js');
+  $title = variable_get('clientside_validation_prefix', '') . $title . variable_get('clientside_validation_suffix', '');
+  $js_rules[$name]['user_check'] = TRUE;
+  $js_rules[$name]['messages']['user_check'] = t('!field field is required.', array('!field' => $title));
+}
+
+function _assignment_set_community_assign($name, $title, $decimalpoint, &$js_rules) {
+  drupal_add_js(drupal_get_path('module', 'assignment') . '/js/assignment_validation.js');
+  $title = variable_get('clientside_validation_prefix', '') . $title . variable_get('clientside_validation_suffix', '');
+  $js_rules[$name]['check_community_assignment'] = TRUE;
+  $js_rules[$name]['messages']['check_community_assignment'] = t('!field field is required.', array('!field' => $title));
+}
+
+function _assignment_check_subject($name, $title, $decimalpoint, &$js_rules){
+  drupal_add_js(drupal_get_path('module', 'assignment') . '/js/assignment_validation.js');
+  $title = variable_get('clientside_validation_prefix', '') . $title . variable_get('clientside_validation_suffix', '');
+  $js_rules[$name]['check_subject'] = TRUE;
+  $js_rules[$name]['messages']['check_subject'] = t('!field field is required.', array('!field' => $title));
+}
+
+function _assignment_check_body($name, $title, $decimalpoint, &$js_rules){
+  drupal_add_js(drupal_get_path('module', 'assignment') . '/js/assignment_validation.js');
+  $title = variable_get('clientside_validation_prefix', '') . $title . variable_get('clientside_validation_suffix', '');
+  $js_rules[$name]['check_body'] = TRUE;
+  $js_rules[$name]['messages']['check_body'] = t('!field field is required.', array('!field' => $title));
+}
+
+function _assignment_set_message_check($name, $title, $decimalpoint, &$js_rules) {
+  drupal_add_js(drupal_get_path('module', 'assignment') . '/js/assignment_validation.js');
+  $title = variable_get('clientside_validation_prefix', '') . $title . variable_get('clientside_validation_suffix', '');
+  $js_rules[$name]['check_message_assignment'] = TRUE;
+  $js_rules[$name]['messages']['check_message_assignment'] = t('!field field contains atleast 100 charactes.', array('!field' => $title));
+}
+
+/**
+ * Override or insert PHPTemplate variables into the templates.
+ */
+function assignment_preprocess_page(&$vars) {
+//load clientside validation js.
+    if((arg(0) == 'assignment' && arg(1) == 'list') || (arg(4) == 'groups')){
+      drupal_add_js(drupal_get_path('module', 'clientside_validation') . '/clientside_validation.js', 'footer');
+    }
+
+/*Generate Assign More link variable for Assigned to pages.*/
+  if(arg(0) == 'assignment' && arg(1) == 'list'){
+    //Check permisssion whether logged in user have access to assign.
+    if(user_access('assign assignments')){
+      if(arg(4) == 'groups') {
+        $list_type = 2;
+      }
+      else {
+        $list_type = 1;
+      }
+      $vars['edit_header_name'] = 'Assigned To';
+      $vars['assign_more_button'] = l('Assign More', '', array('attributes' => array('class' => 'create-button float-right')));
+      $vars['assignment_form'] = drupal_get_form('assignment_form', arg(3), $list_type);
+    }
+  }
+   // Report Level 1 tile with home button
+  if (arg(0) == 'assignment' && arg(1) == 'reports' && is_null(arg(3))) {
+    //$vars['edit_header_name'] =  'Reports';
+    $vars['header_back'] = l('Home', 'node/'. arg(2));
+  }
+   // Report Level 1 tile with home button
+  if (arg(0) == 'assignment' && arg(1) == 'reports' && !is_null(arg(3))) {
+    $query = db_fetch_array(db_query("SELECT asset, title FROM {curriculum_topics_assets} WHERE id = %d", arg(3)));
+    $title = is_numeric($query['asset'])?node_title($query['asset']):$query['title'];
+   // $vars['edit_header_name'] =  'Reports - <span class="bread-remove-bold">' . $title . '</span>';
+    $vars['header_back'] = l('Home', 'node/'. arg(2));
+  }
+
+  if (arg(0) == 'assignment' && arg(1) == 'assign')  {
+    //$vars['edit_header_name'] =  'Assign To';
+  }
+  if (arg(0) == 'assignment' && arg(1) == 'reports' && is_numeric(arg(2))) {
+    $vars['create_link'] = l("Go to Playlist", 'node/' . arg(2), array('attributes' => array('class' => 'float-right', 'title' => 'Go to Playlist')));
+  }
+}
+
+/**
+ * Function to check whether the Entered usernames are valid or not.
+ */
+function check_user(){
+  $to_users = explode(',', $_POST[username]);
+  /* Ckecking for Null content in Array Final Element */
+  if (trim($to_users[count($to_users) - 1]) == '') {
+    array_pop($to_users);
+  }
+  foreach ($to_users as $key => $val) {
+    $return_value = validate_user_check($val);
+  }
+
+  if($return_value['error']){
+    print 'Not';
+  }
+  else{
+    print '';
+  }
+}
+
+function validate_user_check($val){
+
+  if (trim($val)) {
+    $output = array();
+    $temp_user = user_load(array('name' => trim($val)));
+    if (!$temp_user) {
+      // The user is not valid
+      $output['error'] = 'Not a valid user.';
+    }else{
+      $output['no_error'] = 'Valid user.';
+    }
+  }
+
+  return $output;
+}
+
+/**
+ *  Implementing the hook_popups().
+ *
+ */
+function assignment_popups() {
+  // for Assigned Group form delete button...
+  return array( 'assignment/list/*/*/groups' => array(
+      '#edit-own-validate-submit' => array(
+        'additionalJavascript' => array(drupal_get_path('module', 'assignment') .'/js/assignment.js',
+        ),
+        'href' => url('assignment/list/'. arg(2) .'/'. arg(3) .'/groups', array('query' => 'del_ass_group=' . TRUE, 'absolute' => TRUE)),
+      )
+    )
+  );
+}
+
+
+/**
+ * Function to calculate total count of assignments
+ *
+ * The function returns count of total assignments,
+ * pending assignments, completed assignments
+ *
+ * @param $cid
+ *    It contains id of the topic
+ *
+ * @param $status
+ *   default is 1=> it contains pending status, 2 => it contains completed status
+ * @param $assign_status
+ *  Default is 1. It contains whether the user is unassigned or assign. 2 for unassigned user
+ *
+ * @return $query
+ *  It contains query results
+ *
+ */
+function count_assignments($cid, $status = NULL, $assign_status = 1) {
+  $extra_cond = !empty($status)? 'AND A.status=%d':NULL;
+  $query =  db_result(db_query("SELECT COUNT(*) FROM {curriculum_topics} OGA INNER JOIN {curriculum_topics_assets} TA ON TA.topic_id = OGA.topic_id INNER JOIN {assignment_assign} A ON A.st_id = TA.id WHERE A.assign_status = %d and OGA.cid = %d " . $extra_cond, $assign_status, $cid, $status));
+  return $query;
+}
+

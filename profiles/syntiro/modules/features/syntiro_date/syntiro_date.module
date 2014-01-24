@@ -1,0 +1,3 @@
+<?php
+
+include_once('syntiro_date.features.inc');

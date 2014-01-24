@@ -1,0 +1,6 @@
+; $Id: forum.info,v 1.6 2012/05/09  Exp $
+name = cache eb
+description = Custom cache for education bridge
+package = Education Bridge
+version = VERSION
+core = 6.x

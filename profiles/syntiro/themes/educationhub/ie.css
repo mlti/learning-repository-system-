@@ -1,0 +1,19 @@
+.popups-title .popups-close{
+ display:inline;
+ padding:10px;
+}
+.result-left .img{
+ font-size:42px;
+}
+.author-image a, .recommend-group-img{
+ font-size:40px;
+}
+.private-message-view .privatemsg-overall .profile .picture{
+ font-size:76px;
+}
+.result-left .img,
+.member-lists .views-field-picture .picture,
+.report-level-two table td .img,
+.view-og-members .views-field-picture .img{
+ line-height:36px;
+}

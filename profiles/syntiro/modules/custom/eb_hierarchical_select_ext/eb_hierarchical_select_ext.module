@@ -1,0 +1,71 @@
+<?php
+
+/**
+ * @file
+ *
+ *
+ */
+
+ 
+ /**
+ * Implements hook_form_alter() for node_type_form().
+ */
+
+function eb_hierarchical_select_ext_form_alter(&$form, &$form_state, $form_id) {
+  switch($form_id) {
+    case 'asset_node_form': 
+      drupal_add_css(drupal_get_path('module', 'eb_hierarchical_select_ext') .'/templates/css/eb_hierarchical_select_ext.css', 'theme');
+      array_unshift($form['buttons']['submit']['#submit'], "hs_form_submit");
+      if (isset($form['field_txt_mlr'])) {
+        $form['field_txt_mlr']['#prefix'] = '<div style="display:none;">';
+        $form['field_txt_mlr']['#suffix'] = '</div>'; 
+      }
+    break;
+  }  
+}
+
+function hs_form_submit($form, &$form_state) { 
+  $form_state['values']['field_txt_mlr'][0]['value'] = serialize($form_state['clicked_button']['#post']['field_mlr']['tids']['dropbox']['hidden']['lineages_selections']); 
+}
+ 
+
+function get_hs_list($nid = 0, $apache = FALSE, $seperator = ' - ') {
+  $output = NULL;
+  if ($nid) { 
+    $hs_node = node_load($nid);
+    $mlr_arr = unserialize($hs_node->field_txt_mlr[0]['value']);
+     if (count($mlr_arr) > 0 && is_array($mlr_arr)) {
+        $prepare_hs_list = array(); 
+        foreach($mlr_arr AS $key => $value) { 
+          $temp_arr = unserialize($value);
+          if (count($temp_arr)) {
+            foreach($temp_arr AS $tkey => $tvalue) {
+              $t_name_std = taxonomy_get_term($tvalue);
+              if (isset($t_name_std->name)) {
+                if ($prepare_hs_list[$key]) {
+                  $prepare_hs_list[$key] = $prepare_hs_list[$key] . $seperator . $t_name_std->name;
+                }
+                else {
+                  $prepare_hs_list[$key] = $t_name_std->name;      
+                }
+              }
+            }
+          }
+        }
+      }
+      if ($prepare_hs_list) {
+        if ($apache) {
+          $output = $prepare_hs_list;   
+        }
+        else {
+          foreach($prepare_hs_list AS $key => $value) {
+            $tvalue = str_replace(" - ", " ", $value);
+            $link = l($value, 'ebsearch/results/' . $tvalue, array('query' => array('filters'=>'type:asset','solrsort'=>'ps_score_content desc')));
+            $prepare_hs_list[$key] = $link;
+          }
+          $output = implode($prepare_hs_list, ';<br/>');    
+        } 
+      }
+  }
+  return $output;
+} 

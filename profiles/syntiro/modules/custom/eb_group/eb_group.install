@@ -1,0 +1,69 @@
+<?php
+// $Id$
+
+/**
+*@file
+*Install file for eb_group module
+*/
+//tablename_schema()
+function eb_group_discussion_statistics_schema() {
+ $schema = array();
+ $schema['eb_group_discussion_statistics'] = array(
+   'description' => t('eb_group_discussion_statistics table with dis_id int(15), uid int(15), dis_nid int(15), access_time int(15)'),
+   'fields' => array(
+     'dis_id' => array(
+       'description' => t('Discussion Visit ID'),
+       'type' => 'serial',
+       'unsigned' => TRUE,
+       'not null' => TRUE,
+     ),
+     'uid' => array(
+       'description' => t('User ID'),
+       'type' => 'int',
+       'unsigned' => TRUE,
+       'not null' => TRUE,
+     ),
+     'dis_nid' => array(
+       'description' => t('Discussion NodeID'),
+       'type' => 'int',
+       'unsigned' => TRUE,
+       'not null' => TRUE,
+     ),
+     'access_time' => array(
+       'description' => t('changed date time - timestamp'),
+       'type' => 'int',
+       'unsigned' => TRUE,
+       'not null' => TRUE,
+       'default' => 0,
+     ),
+   ),
+   'primary key' => array('dis_id'),
+ );
+
+ return $schema;
+
+}
+
+
+/**
+ * Assign weight in eb_group module.
+ *
+ */
+function eb_group_update_6001() {
+  if (module_exists('eb_group')) {
+    $ret = array();
+    $ret[] = update_sql("UPDATE {system} SET weight=2 WHERE name='eb_group'");
+    return $ret;
+  }
+
+}
+
+//hook_install()
+function eb_group_install() {
+ drupal_install_schema('eb_group_discussion_statistics');
+}
+
+//hook_uninstall()
+function eb_group_uninstall() {
+ drupal_uninstall_schema('eb_group_discussion_statistics');
+}

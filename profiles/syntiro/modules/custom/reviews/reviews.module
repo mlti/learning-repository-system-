@@ -1,0 +1,475 @@
+<?php
+// $Id: review.module,v 1 2011/03/11 Beschi Exp $
+/**
+ * @file
+ * Module file for review
+ * Review is a content type - connected another content types(like asset and curriculum) with node reference
+ * Users can read write reviews if enabled for a particular content type
+ */
+
+/**
+ * Implementation of hook_perm().
+ */
+function reviews_perm() {
+  return array('view reviews content');
+}
+
+/**
+ * Implementation of hook_form_alter().
+ * Changing the form - node/add/review
+ */
+function reviews_form_alter(&$form, &$form_state, $form_id) {
+  global $user;
+
+  switch ($form_id) {
+    case 'reviews_node_form':
+      //Hide Body field Label text, and set default text, make body field as Required.
+      $form['body_field']['body']['#title'] = 'Reviews';
+      if($form['body_field']['body']['#default_value'] == '') {
+        $form['body_field']['body']['#default_value'] = 'Write a review..';
+      }
+      $form['body_field']['body']['#required'] = TRUE;
+      //Change the Submit button value from Save to Submit
+      
+      if (arg(0) != 'eb_mobile') { // still not clear. If we change title of submit then node reference is not working
+        $form['buttons']['submit']['#value'] = 'Submit';  
+      }
+      // $form['buttons']['submit']['#submit'][] = 'reviews_messagechange_submit';
+      //hiding Format fieldset
+      $form['body_field']['format']['#prefix'] = "<div style=display:none> ";
+      $form['body_field']['format']['#suffix'] = "</div>";
+      if(arg(0) == 'asset' || ($form['#node']->type == 'curriculum' || arg(2) == 'reviews') ){ 
+        $form['title']['#title'] = "Review Subject";
+      }
+      //hiding attachments fieldset
+      $form['attachments']['#prefix'] = "<div style=display:none> ";
+      $form['attachments']['#suffix'] = "</div>";
+      
+      //removing the resize option in the text area
+      $form['body_field']['body']['#resizable'] = FALSE;
+      $form['body_field']['body']['#rows'] = 10;
+      //$form['body_field']['body']['#description'] = t('300 characters max'); // hide description 22-6-2011
+      $form['body_field']['body']['#prefix'] = '<div class="resizable-textarea">';
+      $form['body_field']['body']['#suffix'] = '</div>';
+      
+      //Removing Split summury option
+      $form['body_field']['teaser_include']['#type'] = 'hidden';
+      $form['body_field']['teaser_js']['#type'] = 'hidden';
+      //Add Class for Button structure
+      // For redirect to previous page
+      $previous_url = ($form['#node']->type == 'reviews' && arg(1) == 'add')?url('review_listing' . '/' . $_GET['nid'][0]):url('review_listing/' . $form['#node']->field_review_reference[0]['nid']);
+      $form['buttons']['#prefix'] = '<div class="button-main">';
+      
+      $form['buttons']['#suffix'] = '</div>';
+      if ($user->uid != $form['#node']->uid) {
+        $form['buttons']['delete']['#prefix'] = "<div style=display:none> ";
+        $form['buttons']['delete']['#suffix'] = "</div>";
+      }
+      $form['field_review_reference']['#prefix'] = "<div  style=display:none> ";
+      
+      if($form['#node']->type == 'reviews' && arg(2) == 'edit') {
+        $form['field_review_reference'][0]['#default_value']['nid'] = $form['#node']->field_review_reference[0]['nid'];
+        $form['#redirect'] = 'node/' .$form['#node']->field_review_reference[0]['nid'];
+      } else {
+         $form['field_review_reference'][0]['#default_value']['nid'] = arg(1); 
+        $form['#redirect'] = 'node/' . arg(1); 
+      } 
+      $form['field_review_reference']['#suffix'] = "</div>"; 
+
+    break;
+    case 'node_type_form':
+      if (isset($form['identity']['type'])) {
+        $form['review_settings'] = array(
+          '#type' => 'fieldset',
+          '#title' => t('Review Settings'),
+          '#collapsible' => TRUE,
+          '#collapsed' => TRUE,
+          '#description' => t('To enable review for this content, enable checkbox below.'),
+        );
+        $form['review_settings']['review'] = array(
+          '#type' => 'checkbox',
+          '#title' => t('Enable Reviews for nodes.'),
+          '#default_value' => variable_get('review_'. $form['#node_type']->type, 0),
+          '#return_value' => 1,
+        );
+        $form['#submit'][] = 'review_node_type_form_submit';
+      }
+      break;
+  }
+}
+
+/**
+ * Create the Field Items For Review Settings in Database
+ */
+function review_node_type_form_submit($form, &$form_state) {
+  $type_name = $form_state['values']['type'];
+  if ($form_state['values']['review'] == 1) {
+    variable_set('review_' . $form_state['values']['type'], 1);
+
+    //create cck fields for the corresponding content type
+    $field_openreview = array(
+      'field_name' => 'field_openforreview',
+      'display_settings' => array(
+        'weight' => '29',
+        'parent' => '',
+        'label' => array(
+          'format' => 'above',
+        ),
+        'teaser' => array(
+          'format' => 'default',
+          'exclude' => 0,
+        ),
+        'full' => array(
+          'format' => 'default',
+          'exclude' => 0,
+        ),
+        4 => array(
+          'format' => 'default',
+          'exclude' => 0,
+        ),
+        2 => array(
+          'format' => 'default',
+          'exclude' => 0,
+        ),
+        3 => array(
+          'format' => 'default',
+          'exclude' => 0,
+        ),
+        'token' => array(
+          'format' => 'default',
+          'exclude' => 0,
+        ),
+      ),
+      'widget_active' => '1',
+      'type' => 'text',
+      'required' => '0',
+      'multiple' => '2',
+      'db_storage' => '0',
+      'module' => 'text',
+      'active' => '1',
+      'locked' => '0',
+      'columns' => array(
+        'value' => array(
+          'type' => 'text',
+          'size' => 'big',
+          'not null' => FALSE,
+          'sortable' => TRUE,
+          'views' => TRUE,
+        ),
+      ),
+      'text_processing' => '0',
+      'max_length' => '',
+      'allowed_values' => '1|Open for Review',
+      'allowed_values_php' => '',
+      'widget' => array(
+        'default_value' => array(
+          0 => array(
+            'value' => NULL,
+          ),
+        ),
+        'default_value_php' => NULL,
+        'label' => 'Open for Review',
+        'weight' => '29',
+        'description' => '',
+        'type' => 'optionwidgets_buttons',
+        'module' => 'optionwidgets',
+      ),
+    );
+
+    $field_reviewers = array(
+      'field_name' =>
+      'field_reviewers',
+      'display_settings' => array(
+        'weight' => '28',
+        'parent' => '',
+        'label' => array(
+          'format' => 'above',
+        ),
+        'teaser' => array(
+          'format' => 'default',
+          'exclude' => 0,
+        ),
+        'full' => array(
+          'format' => 'default',
+          'exclude' => 0,
+        ),
+        4 => array(
+          'format' => 'default',
+          'exclude' => 0,
+        ),
+        2 => array(
+          'format' => 'default',
+          'exclude' => 0,
+        ),
+        3 => array(
+          'format' => 'default',
+          'exclude' => 0,
+        ),
+        'token' => array(
+          'format' => 'default',
+          'exclude' => 0,
+        ),
+      ),
+      'widget_active' => '1',
+      'type' => 'userreference',
+      'required' => '0',
+      'multiple' => '1',
+      'db_storage' => '0',
+      'module' => 'userreference',
+      'active' => '1',
+      'locked' => '0',
+      'columns' => array(
+        'uid' => array(
+          'type' => 'int',
+          'unsigned' => TRUE,
+          'not null' => FALSE,
+          'index' => TRUE,
+        ),
+      ),
+      'referenceable_roles' => array(
+        5 => 5,
+        3 => 3,
+        2 => 0,
+        6 => 0,
+        7 => 0,
+        4 => 0,
+      ),
+      'referenceable_status' => '',
+      'advanced_view' => '--',
+      'advanced_view_args' => '',
+      'widget' => array(
+        'autocomplete_match' => 'contains',
+        'size' => '60',
+        'reverse_link' => 0,
+        'default_value' => array(
+          0 => array(
+            'uid' => NULL,
+            '_error_element' =>
+            'default_value_widget][field_reviewers][0][uid][uid',
+          ),
+        ),
+        'default_value_php' => NULL,
+        'label' => 'Reviewers ',
+        'weight' => '28',
+        'description' => '',
+        'type' => 'userreference_autocomplete',
+        'module' => 'userreference',
+      ),
+    );
+    $field_openreview['type_name'] = $type_name;
+    $field_reviewers['type_name'] = $type_name;
+    module_load_include('inc', 'content', 'includes/content.crud');
+
+    $instances = content_field_instance_read(array('type_name' => $type_name, 'field_name' => 'field_openforreview'));
+    if (empty($instances)) {
+      content_field_instance_create($field_openreview, FALSE);
+    }
+    $instances = content_field_instance_read(array('type_name' => $type_name, 'field_name' => 'field_reviewers'));
+    if (empty($instances)) {
+      content_field_instance_create($field_reviewers, FALSE);
+    }
+    //flush cache after altering the fields
+    content_clear_type_cache(TRUE);
+    menu_rebuild();
+  }
+  else {
+    variable_set('review_'. $form_state['values']['type'], 0);
+
+    //delete the corresponding cck fields
+    module_load_include('inc', 'content', 'includes/content.crud');
+
+    $instances = content_field_instance_read(array('type_name' => $type_name, 'field_name' => 'field_openforreview'));
+    if (!empty($instances)) {
+      content_field_instance_delete('field_openforreview', $type_name, FALSE);
+    }
+    $instances = content_field_instance_read(array('type_name' => $type_name, 'field_name' => 'field_reviewers'));
+    if (!empty($instances)) {
+      content_field_instance_delete('field_reviewers', $type_name, FALSE);
+    }
+
+    //flush cache after altering the fields
+    content_clear_type_cache(TRUE);
+    menu_rebuild();
+  }
+}
+
+/**
+ *  Implementing hook_nodeapi()
+ *  Changing the default msg - has been created - to thank you message for reviews page
+ */
+function reviews_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
+  if (($node->type == 'reviews' || $node->type == 'asset') && ($op == 'load')) {
+    $messages = drupal_get_messages(NULL, FALSE);
+    $msg = $messages['status'][0];
+    if (strpos($msg, 'review') !== FALSE) {
+      $messages = drupal_get_messages();
+      $msg = $messages['status'][0];
+      if (strpos($msg, 'created') !== FALSE) {
+        drupal_set_message('Thank you for posting a review');
+      }
+      elseif (strpos($msg, 'updated') !== FALSE) {
+        drupal_set_message('Thank you for updating the review');
+      }
+      elseif (strpos($msg, 'deleted') !== FALSE) {
+        drupal_set_message('Your review has been deleted');
+      }
+      else {
+        drupal_set_message($msg);
+      }
+    } 
+  }
+}
+
+/**
+ * Implementation of hook_preprocess_page().
+ *
+ *
+ */
+function reviews_preprocess_page(&$vars) {
+  global $user;
+
+  if (is_numeric(arg(1)) && (arg(0) == 'node' || arg(0) == "review_listing" )) {
+    $node = node_load(arg(1));
+  }
+
+  //dsm($vars);
+  // Display Review Header Title
+  if (arg(0) == 'review_listing' || $node->type == 'reviews') {
+    if (arg(2) == 'edit') {
+      $vars['edit_header_name'] =  'Edit Review';
+    }
+    else {
+      $vars['edit_header_name'] =  'Reviews';
+    }
+    // Get all content types
+    $types = node_get_types();
+
+    // For create review page to redirect to associated node page
+    if (!empty($_GET['nid'][0])) {
+      $nid = $_GET['nid'][0];
+    }
+    else if ($node->type == 'reviews'){
+      $nid = $node->field_review_reference[0]['nid'];
+    }
+    else {
+      $nid = $node->nid;
+    }
+    //$nid = !empty($_GET['nid'][0])?$_GET['nid'][0]:($node->type == 'reviews')? $node->field_review_reference[0]['nid']: $node->nid;
+    $vars['edit_header'] = l('Back', 'node/'. $nid, array('attributes' => array('class' => ''), 'html' => true));
+  }
+  // For review listing page
+  if(arg(0) == 'review_listing') {
+
+    if ($node->field_coauthor) {
+      $flag = 0;
+      foreach ($node->field_coauthor as $users) {
+        if ($users['uid'] == $user->uid) {
+          $flag = 1;
+        }
+      }
+    }
+    if($node->field_published[0]['value'] == 1 || $flag) {
+      if($node->field_openforreview[0]['value'] == 1) {
+        if($node->field_reviewers) {
+          $flag2 = 0;
+          foreach($node->field_reviewers as $value) {
+            if($value['uid'] == $user->uid) {
+              $flag2 = 1;
+            }
+          }
+        }
+        // user have right to update
+        // for review author, user have co author rights, reviewers, author field, review setting should be enabled in cck
+        if( (node_access('update', $node) || $flag2 || $flag || $node->field_author[0]['uid'] == $user->uid) && (variable_get('review_' . strtolower($types[$node->type]->name), 0) == 1)) {
+          $vars['create_button'] = l('Create Review', 'node/add/reviews', array('attributes' => array('class' => ''), 'query' => 'nid[]=' . $node->nid));
+
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Implementation of hook_preprocess_node().
+ *
+ *
+ */
+function reviews_preprocess_node(&$vars) {
+  global $user;
+  if (is_numeric(arg(1)) && arg(0) == 'node') {
+    $node = node_load(arg(1));
+  }
+  // Get all content types
+  $types = node_get_types();
+
+  // For review node
+  if($vars['node']->type == 'reviews') {
+    // Teaser will print in node-reviews.tpl.php
+    if ((arg(0) == 'asset' && arg(2) != 'reviews') || (arg(2) == 'reviews' && arg(3) != '' )) {
+      $vars['asset_teaser'] = truncate_utf8(check_markup($vars['node']->teaser, $vars['node']->format, FALSE), 100,  TRUE, TRUE);
+      $vars['review_list_class'] = 'similar-content';
+    }
+    else {
+      $vars['asset_teaser'] = truncate_utf8(check_markup($vars['node']->teaser, $vars['node']->format, FALSE), 40, $wordsafe = FALSE, $dots = TRUE);
+      $vars['review_list_class'] = 'similar-content review-list';
+    }
+    $vars['author'] =  create_eduauthor($vars['node']->uid);
+    $vars['submitted'] = theme('node_submitted', $vars['node']);
+    if ($vars['node']->field_review_reference) {
+      // Get reviews reference node
+      $node_reference = node_load($vars['node']->field_review_reference[0]['nid']);
+
+      // check if review setting is enabled in cck, node is published, open for reviewers is enabled, review node author
+      if ((variable_get('review_' . strtolower($types[$node_reference->type]->type), 0) == 1) && $node_reference->field_published[0]['value'] == 1 && $node_reference->field_openforreview[0]['value'] == 1  && node_access('update', $vars['node']) ) {
+        $vars['edit_review'] = l(theme_image(drupal_get_path('theme', 'edubridge_fluid') . '/images/edit_icon.png'), 'node/' . $vars['node']->nid .'/edit', array( 'attributes' => array('title' => 'EDIT'),  'html' => TRUE));
+      }
+    }
+    // reviews node author pictures
+    $vars['picture_img'] = theme_imagecache('user_profile_image_146', $vars['node']->picture.'?'.time(), 'My Profile', 'My Profile');
+    // Contact link
+    $vars['contact_url'] = l('Contact', 'messages/new/' . $vars['node']->uid);
+  }
+
+  //Code starts here for Review form, Review listing in New design.
+
+  //Generate Reviews Form which will be printed in node-tpl's.
+  if ($vars['node']->field_coauthor) {
+    $flag = 0;
+    foreach ($vars['node']->field_coauthor as $users) {
+      if ($users['uid'] == $user->uid) {
+        $flag = 1;
+      }
+    }
+  }
+  if(($vars['node']->field_published[0]['value'] == 1 || $flag) && $_GET['mode'] != 'popup') {
+    if($vars['node']->field_reviewers) {
+     $flag2 = 0;
+     foreach($vars['node']->field_reviewers as $value) {
+        if($value['uid'] == $user->uid) {
+          $flag2 = 1;
+        }
+     }
+    }
+    /**
+     * user have right to update, node got published.
+     * for review author, user have co author rights, reviewers, author field, review setting should be enabled in cck
+     * Generate Reviews Tab which will be printed in node-tpl's. Only those content type enabled the Reviews option.
+    */
+    if (variable_get('review_' . strtolower($types[$vars['node']->type]->type), 0) == 1) {
+      if($vars['node']->field_published[0]['value'] == 1 ||  $vars['node']->status == 1)  {
+        $vars['reviewstab'] = l('Reviews', '');
+        //Generate Reviews listing from Views.
+        $vars['reviews_listing'] = views_embed_view('curriculum_reviews_new', 'block_1');
+      }
+    }
+    if((node_access('update', $vars['node']) || $flag2 || $flag || $vars['node']->field_author[0]['uid'] == $user->uid) && (variable_get('review_' . strtolower($types[$vars['node']->type]->type), 0) == 1) && ($_GET['status'] != 'ajax') && ($vars['node']->field_published[0]['value'] == 1 || $vars['node']->type == 'bead')) {
+      $type = 'reviews';
+      $node = array('uid' => $user->uid, 'name' => (isset($user->name) ? $user->name : ''), 'type' => $type, 'language' => '');
+      module_load_include('inc', 'node', 'node.pages');
+      $vars['reviewsform'] = drupal_get_form('reviews_node_form', $node);
+    }
+  }
+
+
+}
+

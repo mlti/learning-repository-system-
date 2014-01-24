@@ -1,0 +1,6 @@
+; $Id: eb_self_registration.info,v 1.6.2.1 2012/07/17 2:00:PM Arunkumar Exp $
+name = Edubridge self registration
+description =  Edubridge self registration
+package = Education Bridge
+core = 6.x
+version = "6.x-1"

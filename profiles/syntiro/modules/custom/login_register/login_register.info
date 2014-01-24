@@ -1,0 +1,6 @@
+; $Id: login_register.info,  29/12/2011 03:41:00 Exp $
+name = Login & Register
+description = Enables login and registration in same page.
+package = Educationhub
+version = VERSION
+core = 6.x

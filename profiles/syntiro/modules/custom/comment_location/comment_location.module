@@ -1,0 +1,319 @@
+<?php
+// $Id: comment_location.module,v 1.0 2011/06/20 20:35:47 goba Exp $
+
+/**
+ * @file
+ * This module move the comment form to the top of post or comments.
+ *
+ */
+
+/**
+ * Comment form will display above post or comments.
+ */
+define('DISPLAY_ABOVE_POST', 2);
+
+/**
+ * Comments will display without user image
+ */
+define('NO_COMMENT_IMAGE', 0);
+
+/**
+ * Comments will display with user image
+ */
+define('DISPLAY_COMMENT_IMAGE', 1);
+
+/**
+ * Implementation of hook_theme().
+ */
+function comment_location_theme() {
+  return array(
+    'comment_username' => array(
+      'arguments' => array('user_name' => NULL),
+    ),
+  );
+}
+
+/**
+ * Implements hook_help().
+ */
+function comment_location_help($path, $arg) {
+  $output = ''; // variable used to declare o/p
+  switch($path) {
+    case "admin/help#comment_location":
+      $output = '<p>'. t('To display comment submission form above comments') .'</p>';
+      break;
+  }
+  return $output;
+}
+
+/**
+ * Implemantation of hook_menu_alter()
+ *
+ */
+function comment_location_menu_alter(&$items) {
+  $items['comment/edit']['title callback'] = 'comment_title_change';
+}
+
+/**
+ * Add comment form on top of comments list and render it in template.
+ */
+function comment_location_preprocess_node(&$variables) {
+  global $user;
+  //Adding JS
+  drupal_add_js(drupal_get_path('module', 'comment_location') . '/js/comment_location.js');
+
+  // If enabled, show new comment form if it's not already being displayed.
+  $reply = arg(0) == 'comment' && arg(1) == 'reply';
+
+  if (user_access('post comments') && node_comment_mode($variables['node']->nid) == COMMENT_NODE_READ_WRITE  && (variable_get('comment_form_location_'. $variables['node']->type, COMMENT_FORM_SEPARATE_PAGE) == 2) && !$reply && $_GET['status'] != 'ajax' && $_GET['mode'] != 'popup' && ($variables['node']->field_published[0]['value'] == 1 || $variables['node']->type == 'bead')) {
+    $variables['commenttab'] = l('Comments', '');
+    $variables['commentform'] = comment_form_box(array('nid' => $variables['node']->nid), t('Add new comments'));
+  }
+ // Comments counts will display this is common for all cck
+  if($variables['node']->comment != 0) {
+    if($variables['node']->comment_count == 0) {
+      $variables['comment_count'] = 'Be the first to comment!';
+    }
+    else if($variables['node']->comment_count == 1) {
+      $variables['comment_count'] = $variables['node']->comment_count . ' Comment';
+    }
+    else {
+      $variables['comment_count'] = $variables['node']->comment_count . ' Comments';
+    }
+  }
+}
+
+/**
+ * hook_form_alter() implementation
+ * Adding an option to display comment form location on top.
+ * Adding an other option to display the user image in comments list.
+ */
+function comment_location_form_alter(&$form, &$form_state, $form_id) {
+  global $user;
+  //echopre($form);
+  switch ($form_id) {
+    case 'node_type_form':
+      if (isset($form['identity']['type'])) {
+        // Adding new option in comment settings to display the comment submission form on top.
+        $form['comment']['comment_form_location']['#options'][DISPLAY_ABOVE_POST] = 'Display above post or comments';
+        // Adding new option in comment settings form to display user image or not.
+        $form['comment']['comment_form_image'] = array(
+          '#type' => 'radios',
+          '#title' => 'Option to Display Image',
+          '#default_value' => variable_get('comment_form_image', '0'),
+          '#options' => array (
+                            DISPLAY_COMMENT_IMAGE => 'Donot display Image',
+                            NO_COMMENT_IMAGE => 'Display Image',
+                        )
+        );
+        $form['#submit'][] = 'custom_save_comment_settings';
+      }
+    break;
+    case 'comment_form':
+      //echof($form);
+      //Set Default text in comment body field.
+      if($form['comment_filter']['comment']['#default_value'] == '') {
+        $form['comment_filter']['comment']['#default_value'] = 'Write a comment..';
+      }
+      $node = node_load(arg(1));
+      $form['_author']['#prefix'] = '<div style = display:none>';
+      $form['_author']['#suffix'] = '</div>';
+
+      $form['subject']['#prefix'] = '<div style = display:none>';
+      $form['subject']['#suffix'] = '</div>';
+
+      if($node->type == 'asset' || $node->type == 'bead' || $node->type == 'curriculum' || arg(2) == 'discussions') {
+       $form['_author']['#value'] = theme("comment_username", strip_tags(create_eduauthor($user->uid)));
+      }
+      else {
+       $form['_author']['#value'] = create_eduauthor($user->uid);
+      }
+      // to change submit button text from save to submit in comment submit form - Sep 09
+      $form['submit']['#value'] = t("Submit");
+
+      $form['comment_filter']['format']['#prefix'] = "<div style=display:none> ";
+      $form['comment_filter']['format']['#suffix'] = "</div>";
+      $form['_author']['#value'] = '<span>' . $form['_author']['#value'] . '</span>';
+    break;
+  }
+}
+
+
+/**
+ *  To save display user image option in table variable.
+ */
+function custom_save_comment_settings(&$form, &$form_state) {
+  variable_set('comment_form_image', $form_state['values']['comment_form_image']);
+}
+
+/**
+* Process variables for comment.tpl.php.
+*
+* @see comment.tpl.php
+* TODO : Remove the case section. Right now in analysis part.
+*/
+function comment_location_preprocess_comment(&$variables) {
+  global $user, $base_url;
+
+  $image_status = variable_get('comment_form_image', '');
+  $edit_img = '<img src='.$base_url.'/'. drupal_get_path('theme', 'educationhub')  . '/images/edit_icon.png>';
+
+  $comment = $variables['comment'];
+
+  if($user->uid == $comment->uid) {
+    $alt = 'My Profile';
+  } else {
+    $alt = 'View Profile';
+  }
+
+  switch($variables['node']->type) {
+    // Right now this case is under analysis. Once completed it will be removed.
+    case 'discussion':
+      if($image_status == 0) {
+
+        $total = db_result(db_query("SELECT COUNT(cid) as total from comments WHERE nid = %d AND uid = %d", $variables['comment']->nid, $variables['comment']->uid));
+
+        $posted_time = db_result(db_query("select created from og_uid WHERE uid = %d", $variables['comment']->uid));
+        if ($posted_time) {
+		  $variables['created_time'] = 'Join Date: '.date('d M Y', $posted_time);
+		}
+        $variables['total'] = 'Posts: '.$total;
+        $user_no_image = variable_get('user_picture_default', '');
+        $attributes = array('attributes' => array('title' => $alt, 'alt' => $alt, 'class' => 'popups', 'on-popups-options' => '{width: "670px"}'), 'html' => TRUE);
+        $userimglink = $comment->picture ? l(theme_imagecache('dis_rev_com_image2', $comment->picture, $alt, $alt), 'user/'.$comment->uid, $attributes) : l(theme_imagecache('dis_rev_com_image2', $user_no_image, $alt, $alt), 'user/'.$comment->uid, $attributes);
+       $variables['template_files'][] = 'comment-discussion';
+      }
+      break;
+  case 'asset':
+
+    if($image_status == 0) {
+      $user_no_image = variable_get('user_picture_default', '');
+      $attributes = array('attributes' => array('title' => $alt, 'alt' => $alt, 'class' => 'popups', 'on-popups-options' => '{width: "670px"}'), 'html' => TRUE);
+      $userimglink = $comment->picture ? l(theme_imagecache('dis_rev_com_image2', $comment->picture, $alt, $alt), 'user/'.$comment->uid, $attributes) : l(theme_imagecache('dis_rev_com_image2', $user_no_image, $alt, $alt), 'user/'.$comment->uid, $attributes);
+      $variables['template_files'][] = 'comment';
+    }
+    break;
+  case 'bead':
+    if($image_status == 0) {
+      $user_no_image = variable_get('user_picture_default', '');
+      $attributes = array('attributes' => array('title' => $alt, 'alt' => $alt, 'class' => 'popups', 'on-popups-options' => '{width: "670px"}'), 'html' => TRUE);
+      $userimglink = $comment->picture ? l(theme_imagecache('dis_rev_com_image2', $comment->picture, $alt, $alt), 'user/'.$comment->uid, $attributes) : l(theme_imagecache('dis_rev_com_image2', $user_no_image, $alt, $alt), 'user/'.$comment->uid, $attributes);
+      $variables['template_files'][] = 'comment';
+
+    }
+    break;
+  case 'curriculum':
+     if($image_status == 0) {
+      $user_no_image = variable_get('user_picture_default', '');
+      $attributes = array('attributes' => array('title' => $alt, 'alt' => $alt, 'class' => 'popups', 'on-popups-options' => '{width: "670px"}'), 'html' => TRUE);
+      $userimglink = $comment->picture ? l(theme_imagecache('dis_rev_com_image2', $comment->picture, $alt, $alt), 'user/'.$comment->uid, $attributes) : l(theme_imagecache('dis_rev_com_image2', $user_no_image, $alt, $alt), 'user/'.$comment->uid, $attributes);
+     $variables['template_files'][] = 'comment';
+     }
+  break;
+
+  }
+  // TODO : NEED TO CHECK THIS CASE. TEMP FIX
+  //if(theme_get_setting('toggle_comment_user_picture')) {
+    $variables['picture']   = $userimglink;
+  //}
+  if($variables['node']->type == 'asset' && $user->uid == $comment->uid){
+    // edit link which displays in the comment listing page.
+     $variables['edit'] = l($edit_img, 'comment/edit/' . $comment->cid, array('html' => 'true'));
+   // $variables['edit']    = l($edit_img, 'asset/' . $variables['node']->nid.'/comments/'.$comment->cid.'/edit', array('html' => 'true'));
+    // reply link which displays in the comment listing page.
+    //$variables['reply']   = l($edit_img, $base_url.'/comment/reply/'.$comment->nid.'/'.$comment->cid, array('html' => 'true'));
+  }
+  if($variables['node']->type == 'bead' && $user->uid == $comment->uid){
+    // edit link which displays in the comment listing page.
+    //$variables['edit']    = l($edit_img, 'bead/' . $variables['node']->nid.'/comments/'.$comment->cid.'/edit', array('html' => 'true'));
+     $variables['edit'] = l($edit_img, 'comment/edit/' . $comment->cid, array('html' => 'true'));
+    // reply link which displays in the comment listing page.
+    //$variables['reply']   = l($edit_img, $base_url.'/comment/reply/'.$comment->nid.'/'.$comment->cid, array('html' => 'true'));
+  }
+  if($variables['node']->type == 'discussion' && $user->uid == $comment->uid){
+    // edit link which displays in the comment listing page.
+    $variables['edit']    = l("Edit", 'comment/edit/' . $comment->cid, array('html' => 'true'));
+    // reply link which displays in the comment listing page.
+    //$variables['reply']   = l($edit_img, $base_url.'/comment/reply/'.$comment->nid.'/'.$comment->cid, array('html' => 'true'));
+  }
+
+  if($variables['node']->type == 'curriculum' && $user->uid == $comment->uid){
+    // edit link which displays in the comment listing page.
+    //$variables['edit']    = l($edit_img, 'curriculum/' . $variables['node']->nid . '/comments/' . $comment->cid . '/edit', array('html' => 'true'));
+    $variables['edit']  = l($edit_img, 'comment/edit/' . $comment->cid, array('html' => 'true'));
+
+    // reply link which displays in the comment listing page.
+    //$variables['reply']   = l($edit_img, $base_url.'/comment/reply/'.$comment->nid.'/'.$comment->cid, array('html' => 'true'));
+  }
+
+
+  $variables['author']    = theme('username', $comment);
+  $variables['content']   = $comment->comment;
+  $variables['date']      = format_date($comment->timestamp, 'custom', 'l, F d, Y');
+  $variables['signature'] = $comment->signature;
+
+  $variables['submitted'] = theme('comment_submitted', $comment);
+
+  // To remove hyperlink for subject for node type bead and asset
+  if($variables['node']->type == 'bead' || $variables['node']->type == 'asset') {
+    $variables['title']     = $comment->subject;
+  } else {
+    $variables['title']     = l($comment->subject, $_GET['q'], array('fragment' => "comment-$comment->cid"));
+  }
+
+  $variables['new'] = $comment->new;
+
+  // set status to a string representation of comment->status.
+  if (isset($comment->preview)) {
+    $variables['status']  = 'comment-preview';
+  } else {
+    $variables['status']  = ($comment->status == COMMENT_NOT_PUBLISHED) ? 'comment-unpublished' : 'comment-published';
+  }
+}
+
+//Generating theme function to display name in comment submission form
+function theme_comment_username($username) {
+  return '<div class="common-text">' . $username . '</div>';
+}
+
+/**
+ * Implementation of hook_preprocess_page().
+ *
+ *
+ */
+function comment_location_preprocess_page(&$vars) {
+  global $user;
+  // For comment Edit page only
+  if (arg(0) == 'comment' && arg(1) == 'edit') {
+    $nid = db_result(db_query("SELECT nid FROM comments WHERE cid=%d", arg(2)));
+    $vars['edit_header_name'] =  t('Edit Comment');
+    $vars['edit_header'] =  l('Back', 'node/' . $nid, array('attributes' => array('class' => ''), 'html' => TRUE));
+  }
+}
+
+/**
+ * Add a "Comments" heading above comments except on forum pages.
+ */
+function phptemplate_preprocess_comment_wrapper(&$vars) {
+  if ($vars['content'] && $vars['node']->type != 'forum') {
+    // Get comments count
+    $vars['comment_total_count'] = comment_num_all($vars['node']->nid);
+  }
+}
+
+/**
+ * Comment Edit page Title Should be change
+ *
+ * @return
+ *  It returns title if node nid is available otherwise it return default edit comment
+ *
+ */
+function comment_title_change() {
+  $nid = db_result(db_query("SELECT nid FROM comments WHERE cid=%d", arg(2)));
+  if (!empty($nid)) {
+    return node_title($nid);
+  }
+  else {
+    return 'Edit comment';
+  }
+}

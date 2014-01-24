@@ -1,0 +1,81 @@
+<?php
+// $Id$
+
+/**
+ * @file
+ * Install file for bookmark module
+ */
+
+//hook_schema()
+function bookmark_schema() {
+  $schema = array();
+
+$schema['bookmark'] = array(
+  'description' => t('Bookmark table with asset id, user id, role id, and timestamp'),
+  'fields' => array(
+    'id' => array(
+      'description' => t('bookmarking id'),
+      'type' => 'serial',
+      'unsigned' => TRUE,
+      'not null' => TRUE,
+    ),
+    'asset' => array(
+      'description' => t('asset id or direct url'),
+      'type' => 'text',
+      'not null' => TRUE,
+    ),
+    'type' => array(
+      'description' => t('type of the bookmark - google or asset'),
+      'type' => 'varchar',
+      'length' => 255,
+      'not null' => TRUE,
+      'default' => '',
+    ),
+    'title' => array(
+      'description' => t('Title of the url - if google link'),
+      'type' => 'text',
+      'not null' => TRUE,
+    ),
+    'description' => array(
+      'description' => t('Description of the url - if google link'),
+      'type' => 'text',
+      'not null' => TRUE,
+    ),
+    'uid' => array(
+      'description' => t('user id'),
+      'type' => 'int',
+      'unsigned' => TRUE,
+      'not null' => TRUE,
+      'default' => 0,
+    ),
+    'rid' => array(
+      'description' => t('role id'),
+      'type' => 'int',
+      'unsigned' => TRUE,
+      'not null' => TRUE,
+      'default' => 0,
+    ),
+    'timestamp' => array(
+      'description' => t('added date time - timestamp'),
+      'type' => 'int',
+      'unsigned' => TRUE,
+      'not null' => TRUE,
+      'default' => 0,
+    ),
+  ),
+  'primary key' => array('id'),
+);
+
+
+return $schema;
+}
+
+//hook_install()
+function bookmark_install() {
+  drupal_install_schema('bookmark');
+}
+
+//hook_uninstall()
+function bookmark_uninstall() {
+  drupal_uninstall_schema('bookmark');
+}

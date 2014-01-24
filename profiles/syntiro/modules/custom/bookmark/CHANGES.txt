@@ -1,0 +1,34 @@
+<!-- Added By Beschi: 28-Feb-2011 starts -->
+
+/*Column Information For - edubridge.bookmark*/
+-----------------------------------------------
+
+Field        Type              Collation        Null    Key     Default  Extra           
+-----------  ----------------  ---------------  ------  ------  -------  --------------  
+id           int(10) unsigned  (NULL)           NO      PRI     (NULL)   auto_increment  
+asset        text              utf8_general_ci  NO              (NULL)                   
+type         varchar(255)      utf8_general_ci  NO                                       
+title        text              utf8_general_ci  NO              (NULL)                   
+description  text              utf8_general_ci  NO              (NULL)                            
+uid          int(10) unsigned  (NULL)           NO              0                               
+rid          int(10) unsigned  (NULL)           NO              0                                 
+timestamp    int(10) unsigned  (NULL)           NO              0      
+
+Bookmark displaying near search results, google results, federated results
+If click bookmark will be added, resonse displayed and link will be changed to remove.
+If click on remove - bookmark will be removed and link will be changed to add bookmark
+These are in ajax funcionality using jquery
+
+Adding bookmark:
+For normal content type: bookmark/add/%node_id
+For external link: bookmark/add/external?link=?...&type=...&desc=...&type=...(google/federated)
+
+Removing bookmark:
+bookmark/remove/%bookmark_id
+
+My Bookmarks page:
+Ajax pager
+Selecting type in left side - ajax content change
+Remove bookmark - popup confirmation
+
+<!-- Added By Beschi ends -->

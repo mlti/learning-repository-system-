@@ -1,0 +1,577 @@
+<?php
+function mars_init(){
+ //fw1($_SESSION);
+ //fw1('***************************');
+}
+
+function fw1($content){
+  if(variable_get('clear_log_file','')) {
+    unlink(file_directory_path().'/logantony.log');
+  }
+  if(variable_get('write_to_log','') || TRUE) {
+    $fp = fopen(file_directory_path() . '/logantony.log', "a");
+    $content = format_date(time(), 'small')." \r\n".print_r($content,1);
+    fwrite($fp, $content." \r\n");
+    fclose($fp);
+  }
+}
+
+function mars_preprocess_page(&$variables) {
+  global $user;
+
+  // If this is a node page (not a list of nodes page) and
+  // the node is shown in 'view' mode rather than 'edit' or whatever.
+  if (isset($variables['node']) && (arg(2) == "overview") && $user->uid ) {
+    // If the content type of that one node is 'CONTENT_TYPE_NAME'.
+    $bm_check='';
+    if ($variables['node']->type == 'asset' || $variables['node']->type == 'bead') {
+      $bm_check = db_result(db_query('SELECT COUNT(*) FROM {mars} WHERE nid = %d', $variables['node']->nid));
+      if ($bm_check) {
+        db_query('INSERT INTO {mars_statistics} (nid,uid,access_time) VALUES (%d,%d,%d)', $variables['node']->nid, $user->uid, time());
+      }
+    }
+  }
+}
+
+function mars_menu() {
+  $items = array();
+  $items['mars'] = array(
+    //'title' => 'Search Results',
+    'page callback' => 'mars_page',
+    'access arguments' => array('administer mars'),
+    'type' => MENU_CALLBACK,
+
+  );
+  $items['bridge/mymars'] = array(
+    'title' => 'MARS',
+    'description' => 'Mymars view for users',
+    'page callback' => 'mars_new_page',
+    'access arguments' => array('access mars'),
+    'type' => MENU_CALLBACK,
+    'weight' => -10,
+  );
+
+  // Settings:
+  $items['admin/settings/mars-settings'] = array(
+    'title' => 'Mars Settings',
+    'description' => 'Mars Settings.',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('mars_settings'),
+    'access arguments' => array('administer site configuration'),
+  );
+  // Bookmark block - ajax load
+  $items['mars/block'] = array(
+    'page callback' => 'mars_block_ajax',
+    'access arguments' => array('access mars'),
+    'type' => MENU_CALLBACK,
+  );
+  // Bookmark listing - ajax load
+  $items['mars/listing'] = array(
+    'page callback' => 'mars_listing_ajax',
+    'access arguments' => array('access mars'),
+    'type' => MENU_CALLBACK,
+  );
+
+  return $items;
+}
+
+function mars_perm() {
+  return array('access mars', 'administer mars');
+}
+
+/**
+ * Implementation of hook_block().
+ */
+function mars_block($op = 'list', $delta = 0) {
+    global $user, $base_url;
+    if ($op == 'list') {
+      $blocks[0]['info'] = t('My MARS');
+      return $blocks;
+    }
+    if ($op == 'view') {
+      switch ($delta) {
+        case 0: 
+          $node = function_exists("custom_node_load") ? custom_node_load() : NULL;
+          if (($node->type == 'curriculum' || ($node->type == 'asset' && arg(3) == 'html') || ($node->type == 'bead' && arg(3) == 'html')) && arg(2) == 'content' && user_access('access mars')) {
+            $block['subject'] = t('My MARS');
+            $block['content'] = drupal_get_form(mars_block_form);
+            
+          }
+        break;
+      }
+      return $block;
+    }
+}
+
+function mars_block_form($form_state) {
+  drupal_add_js(drupal_get_path('module', 'mars') . '/mars_block.js');
+  global $base_url;
+  $form = array();
+  $form['#attributes'] = array('style' => 'display: none');
+  $form['mars-content'] = array(
+    '#type' => 'markup',
+    '#value' => '<div id="mars-block-content">' . mars_block_default_content() .'</div>',
+  );
+
+  return $form;
+}
+
+function mars_block_default_content() {
+  global $user;
+  $uid = $user->uid;
+  $limit = 5;
+  $user_node_profile = function_exists("content_profile_load") ? content_profile_load('profile', $user->uid) : NULL;
+  //$user_node_profile = array();
+  //if (isset($user->eb_user_institute)) {
+  //  $user_node_profile = $user->eb_user_institute;  
+  //}
+  $tx_array_value = '';
+  if (is_array($user_node_profile->taxonomy)) {
+    foreach ($user_node_profile->taxonomy AS $t_key => $value) {
+      $tx_array_value[] = $t_key;
+    }
+  }
+  if ($tx_array_value) {
+    // check playlist available in playlist basket if available then only add dragable links to listing
+    if (function_exists("playlist_query")) {
+      $playlist_arguments = array('curriculum', $user->uid, $user->uid, $user->uid, $user->uid);
+      $playlist_count = playlist_query(NULL, NULL, $playlist_arguments, TRUE);
+    }
+     
+    //check if user have rights to drag and drop to playlist or asset
+    $drop_tooltip = FALSE;
+    if (user_access("create curriculum content") || user_access("create asset content")) {
+      $drop_tooltip = TRUE;
+    }
+    $count_query = "SELECT COUNT(DISTINCT(nid)) FROM {mars} WHERE tid IN (".db_placeholders($tx_array_value, 'int').")";
+    $mars_query_distinct = pager_query("SELECT DISTINCT(nid) FROM {mars} WHERE tid IN (".db_placeholders($tx_array_value, 'int').")", $limit, MARS_BASKET_PAGER_ID, $count_query, $tx_array_value);
+    if (db_affected_rows()) {
+      $items = array();
+      while ($row_dist = db_fetch_object($mars_query_distinct)) {
+        $row = db_fetch_array(db_query('SELECT * FROM {mars} WHERE nid = %d', $row_dist->nid));
+        $contentblk_output = unserialize($row['body']);
+        if (function_exists("drag_drop_make_link")) {
+          $drag_class = "mars-links";
+          if ($playlist_count == 0 || !$drop_tooltip) {
+            $drag_class = NULL;
+          }
+          $items[] = drag_drop_make_link_left_block($row['nid'], truncate_utf8($contentblk_output['title'], 26, TRUE, TRUE), $row['type'], $contentblk_output['body_content'], $contentblk_output['title'], $drag_class, TRUE);
+        }
+      }
+      $output = theme('item_list', $items);
+      $pager = theme('pager', NULL, $limit, MARS_BASKET_PAGER_ID);
+    }
+    else{
+      $output =  "<p>No Resource Found.</p>";
+    }
+  }
+  else{
+    $output =  "<p>You have not Selected Your Discipline.</p>";
+  }
+
+  return $output . $pager;
+}
+
+function mars_make_link($asset, $title, $type, $desc = '') {
+  //check if this is a external link of asset link
+  if(is_numeric(arg(1))) {
+    $node = node_load(arg(1));
+  }
+  if((arg(0) == 'node' && is_numeric(arg(1)) && arg(2) == 'content' || arg(0) == 'node' && is_numeric(arg(1)) && $node->type == 'curriculum')) {
+    $tool_text = 'Click to Preview';
+  }  else {
+    $tool_text = 'Click to View';
+  }
+
+  if ($type == "google" || $type == "federated") {
+    $link = $asset;
+
+    $options = array('attributes' => array('title' => $tool_text, 'target' => '_blank'));
+
+    $title = $title;
+      $class_type = "curriculum-default";
+  }
+  else {
+    //set the default node/id as path, if path alias is enabled (using path module) - change to that path
+    $nodeobj = node_load($asset);
+    if ($nodeobj->taxonomy) {
+      $taxonomy = end($nodeobj->taxonomy);
+    }
+    else {
+      $taxonomy = '';
+    }
+
+
+    // Added to display all fields correctly in edit view currriculum by #Fero July 11
+    $link = ('node/'.$nodeobj->nid);
+    // $link = $nodeobj->path;
+    $desc = htmlentities($nodeobj->teaser);
+    $options = array('attributes' => array('title' => $tool_text));
+    if ($type == "asset") {
+      $title = check_plain($nodeobj->title);
+      $class_type = "asset-" . drupal_strtolower($nodeobj->field_format[0]['value']);
+    }
+    elseif ($type == "bead") {
+      // Added by Fero on july 12 to create different icons for bead in mars block.
+      $title = check_plain($nodeobj->title);
+      $class_type = "bead-". drupal_strtolower($nodeobj->field_format[0]['value']);
+    }
+    elseif ($type == "quiz") {
+      // Added by Fero on july 12 to create different icons for bead in mars block.
+      $title = check_plain($nodeobj->title);
+      $class_type = "quiz-nodoc";
+    }
+    else {
+      $title = check_plain($nodeobj->title);
+      $class_type = "curriculum-nodoc";
+    }
+  }
+
+  return '<div class="mars-links '. $class_type .'" content_asset="'. $asset .'" content_type="'. $type .'" class_type="'. $class_type .'" content_title="'. $title .'" content_desc="' . $desc .'">' . l(truncate_utf8($title, 26, TRUE, TRUE), $link, $options) . '</div>';
+}
+
+function mars_theme() {
+  return array(
+    'mymars_view' => array(
+      'template' => 'mars-view',
+      'arguments' => array('results' => NULL),
+    ),
+
+  );
+}
+
+function mars_apachesolr_modify_query(&$query, &$params, $caller) {
+  $crn_path = '';
+  if ($query->get_path()) {
+    $crn_path = explode('/', $query->get_path());
+    if ($crn_path[0] == 'mars_page') {
+      $params['rows'] = 1;
+    }
+  }
+}
+
+function mars_page() {
+  global $base_url;
+  $vid = '';
+  $vid = db_result(db_query('SELECT vid FROM {vocabulary} WHERE name ="%s"', 'Discipline'));
+  if ($vid) {
+    $tree = function_exists("taxonomy_get_tree") ? taxonomy_get_tree($vid, 0, -1, 1) : NULL;
+    $options = array();
+    if (is_array($tree)) {
+      foreach ($tree as $keyt => $valuet) {
+        $options[$valuet->tid] = $valuet->name;
+      }
+    }
+    foreach ($options as $key => $value) {
+      if (function_exists('apachesolr_search_execute')) {
+        $results_rate = apachesolr_search_execute($value, 'type:asset', 'ps_score_content desc', 'mars_page');
+        $results_created = apachesolr_search_execute($value, 'type:asset', 'created desc', 'mars_page');
+        $results_rate_bead = apachesolr_search_execute($value, 'type:bead', 'ps_score_content desc', 'mars_page');
+        $results_created_bead = apachesolr_search_execute($value, 'type:bead', 'created desc', 'mars_page');
+      }
+      db_query('DELETE FROM {mars} WHERE tid = %d', $key);
+      
+      create_mars_html($key, $value, $results_rate, 1, 'asset');
+      create_mars_html($key, $value, $results_created, 2, 'asset');
+      create_mars_html($key, $value, $results_rate_bead, 1, 'bead');
+      create_mars_html($key, $value, $results_created_bead, 2, 'bead');
+    }
+  }
+}
+
+function create_mars_html($f_key, $f_value, $f_results_rate = array(), $f_type = NULL, $c_type) {
+  global $base_url;
+  foreach ($f_results_rate AS $key_res => $value_res) {
+    $output = $title = $picture = $bookmark_link = $recommend_link = $body_content = '';
+    $v = array();
+    $v['title'] = $value_res['title'];
+    $v['author'] = $value_res['user'];
+    $v['author_uid'] = $value_res['fields']['uid'];
+    $v['type'] = $value_res['fields']['type'];
+    $v['author_firstname'] = $value_res['fields']['tm_author_name'][0];
+    $v['category'] = ($value_res['fields']['tm_asset_category']) ? implode(', ',$value_res['fields']['tm_asset_category']):'';
+    $v['source'] = $value_res['fields']['tm_source'][0];
+     // node_teaser() function is to give teaser of the specific node
+     // For removing whitespaces in teaser  is in eb_others_common.inc
+    if (function_exists('removing_whitespace')) {
+      $v['body_content'] = removing_whitespace($value_res['fields']['tm_teaser'][0], NULL, NULL);
+    }
+    if ($c_type == 'asset') {
+      $v['title'] = l($value_res['title'], 'node/' . $value_res['fields']['nid'], array('attributes' => array('title' => 'Click to view content'), 'html' => TRUE));
+      if (function_exists("teaser_nodes") && function_exists("searchimagefiles")) {
+        $v['picture'] = l(teaser_nodes(NULL, 'dis_rev_com_image2', searchimagefiles($value_res['fields']['type'], $value_res['fields']['format'])), 'node/' . $value_res['fields']['nid'] , array('attributes' => array('target' => '_blank'), 'html' => TRUE));
+      }
+      $v['flag_content'] = $value_res['fields']['tm_institute'][0];
+    }
+    else {
+      $v['beadseqno'] = $value_res['fields']['tm_beadseqno'][0];
+      $v['beadsourceid'] = $value_res['fields']['tm_source_id'][0];
+      $v['title'] = l($value_res['title'], 'node/' . $value_res['fields']['nid'], array('attributes' => array('title' => 'Click to view content')));
+      if (function_exists("teaser_nodes") && function_exists("searchimagefiles")) {
+        $v['picture'] = l(teaser_nodes(NULL, 'dis_rev_com_image2', searchimagefiles($value_res['fields']['type'], $value_res['fields']['format'])) . '<span class="bead-small-icon"><img s src="' . $base_url . '/' . drupal_get_path('theme', 'educationhub') . '/images/icons/bead_icon_small.png"/></span>', 'node/' . $value_res['fields']['nid'] , array('attributes' => array('target' => '_blank'), 'html' => TRUE));
+      }
+    }
+    $v['fivestar_widget'] = NULL;
+    //check the average voting - if zero then dont display the stars
+    if (module_exists('fivestar')) {
+      $v['fivestar_widget'] = $value_res['fields']['ss_fivestar_widget'];
+    }
+
+
+    $comment_plural = ($value_res['extra'][0] == '1 comments')?'1 comment':($value_res['extra'][0] == '0 comments')?'Be the first to comment!':$value_res['extra'][0];
+    //$v['comments'] = $comment_plural;
+    if($value_res['node']->is_comment != 0) {
+      $v['comments'] = l($comment_plural, $value_res['fields']['path']);
+    }
+    $v['ss_taxonomy_name'] = $value_res['fields']['ss_taxonomy_name'];
+    $v = serialize($v);
+    db_query('INSERT INTO {mars} (tid, nid, type, body, created, search_format) VALUES (%n, %n, "%s", "%s", %n, %n)', $f_key, $value_res['fields']['nid'], $c_type, $v, time(), $f_type);
+  }
+  variable_set('mars_cron_lastruntime', date('Y-m-d  H:i'));
+}
+
+function mars_new_page($mobile_flag = FALSE, $scroll_count = FALSE, $tcount_flag = FALSE) {
+  global $user, $base_url;
+  $total_count = "";
+  drupal_add_js(drupal_get_path('module', 'bookmark') .'/bookmark.js');
+  if (arg(0) == 'bridge' && arg(1) != "mymars") {
+    drupal_add_js(array('bridge_basket' => TRUE), 'setting');
+  }
+  $user_node_profile = function_exists("content_profile_load") ? content_profile_load('profile', $user->uid) : NULL;
+  //$user_node_profile  = array();
+  //if (isset($user->eb_user_institute)) {
+  //  $user_node_profile = $user->eb_user_institute;  
+  //}
+
+  $tx_array_value = '';
+  if (is_array($user_node_profile->taxonomy)) {
+    foreach ($user_node_profile->taxonomy AS $t_key => $value) {
+      $tx_array_value[] = $t_key;
+    }
+  }
+
+  if ($tx_array_value) {
+    $bm_query = db_query('SELECT id, asset FROM {bookmark} WHERE uid = %d AND type = "%s"', $user->uid, 'asset');
+    
+    $bm_array = array();
+    while ($bm_result = db_fetch_object($bm_query)) {
+      $bm_array[$bm_result->id] = $bm_result->asset;
+    }
+
+    $ndvisit_query = db_query('SELECT DISTINCT nid FROM {mars_statistics} WHERE uid = %d', $user->uid);
+
+    $ndvisit_array = array();
+    while ($ndvisit_result = db_fetch_object($ndvisit_query)) {
+      $ndvisit_array[] = $ndvisit_result->nid;
+    }
+     $count_query = "SELECT COUNT(DISTINCT(nid)) FROM {mars} WHERE tid IN (".db_placeholders($tx_array_value, 'int').")";
+      if(!$mobile_flag) {
+        // check playlist available in playlist basket if available then only add dragable links to listing
+        if (function_exists("playlist_query")) {
+          $playlist_arguments = array('curriculum', $user->uid, $user->uid, $user->uid, $user->uid);
+          $playlist_count = playlist_query(NULL, NULL, $playlist_arguments, TRUE);
+        }
+        
+        //check if user have rights to drag and drop to playlist or asset
+        $drop_tooltip = FALSE;
+        if (user_access("create curriculum content") || user_access("create asset content")) {
+          $drop_tooltip = TRUE;
+        }
+        $mars_query = pager_query("SELECT DISTINCT(nid) FROM {mars} WHERE tid IN (".db_placeholders($tx_array_value, 'int').")", 5, MARS_LISTING_PAGER_ID, $count_query, $tx_array_value);
+      }
+      else{
+        $start_limit = $scroll_count * 10;
+        $limit_query = " LIMIT ". $start_limit .", 10";
+        $mars_query = db_query("SELECT DISTINCT(nid) FROM {mars} WHERE tid IN (".db_placeholders($tx_array_value, 'int').")" . $limit_query, $tx_array_value);
+     
+        if($tcount_flag == TRUE){
+          $total_count = db_result(db_query("SELECT COUNT(DISTINCT(nid)) FROM {mars} WHERE tid IN (".db_placeholders($tx_array_value, 'int').")", $tx_array_value));
+        }
+      }
+    if (db_affected_rows()) {
+      $output = array();
+      $i = 1;
+      while ($mars_result_content = db_fetch_object($mars_query)) {
+        $mars_result = db_fetch_object(db_query('SELECT * FROM {mars} WHERE nid = %d', $mars_result_content->nid));
+        $content_output = array();
+        $content_output['nid'] = $mars_result->nid;
+        $content_output['fields'] = unserialize($mars_result->body);
+        if (function_exists("drag_drop_make_link")) {
+          if ($playlist_count == 0 || !$drop_tooltip) {
+            $content_output['fields']['title'] = drag_drop_make_link($content_output['nid'], $content_output['fields']['title'], $mars_result->type, $content_output['fields']['body_content'], $content_output['fields']['title'], 'float-left');
+          }
+          else {
+             $content_output['fields']['title'] = drag_drop_make_link($content_output['nid'], $content_output['fields']['title'], $mars_result->type, $content_output['fields']['body_content'], 'Drag to Drop into your playlists', 'mars-links float-left');
+          }
+        }
+        $content_output['fields']['body_content'] = $content_output['fields']['body_content'];
+        $content_output['fields']['author'] = create_eduauthor($content_output['fields']['author_uid'], $content_output['fields']['author_firstname']);
+
+        $content_output['fields']['bookmark'] = function_exists("bookmark_this_link") ? bookmark_this_link($mars_result->nid, $mars_result->type) : NULL;
+        $content_output['fields']['type'] = $content_output['fields']['type'];
+        // For flag content generation
+        if ($content_output['fields']['flag_content'] && function_exists("institution_flag")) {
+          $content_output['fields']['flag_content'] = institution_flag($content_output['fields']['flag_content']);
+        }
+        $content_output['fields']['links'] = l('More', 'node/' . $mars_result->nid,  array('attributes' => array('nodetype' => $mars_result->type, 'title' => 'Click to Preview', 'tabindex' => "0")));
+        $output['fields'][$mars_result->mid]['nid'] = $mars_result->nid;
+        $content_output['fields']['fivestar_widget'] = $content_output['fields']['fivestar_widget'];
+        if ($mars_result->type == 'asset') {
+
+          $output['fields'][$mars_result->mid]['body'] = theme('asset_teaser', $content_output);
+        } 
+        else {
+          $content_output['fields']['stringable_beads_link'] =  function_exists("beads_stringable_link") ? beads_stringable_link($mars_result->nid, $content_output['fields']['beadseqno'], $content_output['fields']['beadsourceid']) : NULL;
+          $content_output['fields']['source'] = $content_output['fields']['source'];
+          
+          $output['fields'][$mars_result->mid]['body'] = theme('bead_teaser', $content_output);
+        }
+        
+
+        $output['fields'][$mars_result->mid]['nd_visited'] = (in_array($mars_result->nid, $ndvisit_array))?'selected-author':'';
+        $output['fields'][$mars_result->mid]['nd_visited'] = (in_array($mars_result->nid, $ndvisit_array))?'selected-author':'';
+
+        //Check the mobile access
+        if($mobile_flag){
+          $result_mobile[$i] = $content_output;
+        }        
+        $i++;
+      }
+    }
+    else {
+      //check the mobile access
+      if($mobile_flag){
+        $result_mobile['no_record'] = 'No Record Found';
+      }else{
+        $output['no_record']= 'No Record Found';
+      }
+    }
+  }
+  else{
+    if($mobile_flag){
+      $result_mobile['no_record']='Discipline Not Selected.';
+    }else{
+      $output['no_record']='Discipline Not Selected.';
+    }
+  }
+  
+  //Check the mobile access
+  if($mobile_flag){
+    if($tcount_flag == TRUE){
+      $result_mobile['total_count'] = $total_count;
+    }
+    return $result_mobile;
+  }
+
+  if(!$mobile_flag){  
+    $results = theme('mymars_view', $output);
+    return $results;
+  }
+}
+
+
+function mars_preprocess_mymars_view(&$vars) {
+  $vars['mars_result'] = $vars['results'];
+  $vars['pager'] = theme('pager', NULL, 5, MARS_LISTING_PAGER_ID);
+}
+
+function mars_settings() {
+  $form['mars_cron_frequency'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Frequency'),
+    '#default_value' => variable_get('mars_cron_frequency', '1'),
+    '#description' => t('Mars Cron Frequency.'),
+    '#required' => TRUE
+  );
+  $form['#validate'][] = 'mars_settings_validate';
+  return system_settings_form($form);
+}
+
+function mars_settings_validate($form, &$form_state) {
+  if (!is_numeric($form_state['values']['mars_cron_frequency'])) {
+    form_set_error('mars_cron_frequency', 'Please Enter an Integer Value');
+  }
+}
+
+function mars_cron() {
+  $mars_hour_diff = get_time_difference(variable_get('mars_cron_lastruntime', ''), date('Y/m/d  H:i'));
+  if ($mars_hour_diff >= variable_get('mars_cron_frequency', '1')) {
+    mars_page();
+  }
+}
+
+/**
+ * Function to calculate date or time difference.
+ *
+ * Function to calculate date or time difference. Returns an array or
+ * false on error.
+ *
+ * @author       J de Silva                             <giddomains@gmail.com>
+ * @copyright    Copyright &copy; 2005, J de Silva
+ * @link         http://www.gidnetwork.com/b-16.html    Get the date / time difference with PHP
+ * @param        string                                 $start
+ * @param        string                                 $end
+ * @return       array
+ */
+function get_time_difference( $start, $end ) {
+  $uts['start']      =    strtotime( $start );
+  $uts['end']        =    strtotime( $end );
+  if ( $uts['start']!==-1 && $uts['end']!==-1 ) {
+      if ( $uts['end'] >= $uts['start'] ) {
+          $diff    =    $uts['end'] - $uts['start'];
+          if ( $days=intval((floor($diff/86400))) )
+              $diff = $diff % 86400;
+          if ( $hours=intval((floor($diff/3600))) )
+              $diff = $diff % 3600;
+          if ( $minutes=intval((floor($diff/60))) )
+              $diff = $diff % 60;
+          $diff    =    intval( $diff );
+          return ( array('days' => $days, 'hours' => $hours, 'minutes' => $minutes, 'seconds' => $diff) );
+      }
+      else {
+          trigger_error( "Ending date/time is earlier than the start date/time", E_USER_WARNING );
+      }
+  }
+  else {
+      trigger_error( "Invalid date/time data detected", E_USER_WARNING );
+  }
+  return (FALSE);
+}
+
+
+/* Function to get New MARS Count*/
+function mars_count(){
+  global $user;
+  $user_node_profile = function_exists("content_profile_load") ? content_profile_load('profile', $user->uid) : NULL;
+  //$user_node_profile  = array();
+  //if (isset($user->eb_user_institute)) {
+  //  $user_node_profile = $user->eb_user_institute;  
+  //}
+  $tx_value = '';
+  $tx_array = array();
+  if (is_array($user_node_profile->taxonomy)) {
+    foreach ($user_node_profile->taxonomy AS $t_key => $value) {
+      $tx_array[] = $t_key;
+      $tx_value .= ($tx_value)? ',' . $t_key : $t_key;
+    }
+  }
+  $mars_count = ($tx_value)? db_result(db_query('select COUNT(DISTINCT(nid)) FROM {mars} WHERE tid IN(%s) AND nid NOT IN (select DISTINCT(nid) FROM {mars_statistics} WHERE uid = %d)', $tx_value, $user->uid)):'';
+  return $mars_count;
+}
+/**
+ * Bookmark basket block pager in ajax load.
+ *
+ */
+function mars_block_ajax() {
+  print_r(mars_block_default_content());
+  exit;
+}
+/**
+ * Bookmark listing page pager in ajax load.
+ *
+ */
+function mars_listing_ajax() {
+  $_GET['q'] = 'bridge/mymars';
+  print_r(mars_new_page());
+  exit;
+}

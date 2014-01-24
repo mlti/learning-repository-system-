@@ -1,0 +1,3 @@
+<?php
+
+include_once('syntiro_private_message.features.inc');

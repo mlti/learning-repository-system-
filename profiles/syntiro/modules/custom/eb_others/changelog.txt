@@ -1,0 +1,11 @@
+# @author 
+# FEATURE: Add Class/grade taxonomy field for Profile cck
+#############################################################################
+
+---------------------------------------------------------------
+# @date 26/12/2011 
+---------------------------------------------------------------
+- Add New Field for Profile cck
+  * Add Class/grade taxonomy field for Profile cck
+  * Enable eb_school_group module
+

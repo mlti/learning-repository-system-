@@ -1,0 +1,476 @@
+<?php
+// $Id: privatemsg_ext.module,v 1 2010/09/30 13:17:00 bala Exp $
+
+
+
+/**
+ * Implementation of hook_form_alter
+ */
+function privatemsg_ext_form_alter(&$form, &$form_state, $form_id) {
+	global $user;
+  switch ($form_id) {
+    case 'privatemsg_list':
+			// Include the js for private message pager in Ajax
+			drupal_add_js(drupal_get_path('module', 'privatemsg_ext') . '/privatemsg_ext.js');
+
+			$form['actions']['delete']['#submit'][] = "privatemsgext_delete";
+			$form['privatemsg']['format']['#type']='hidden';
+			// Removing Adding  Dropdowns and adding button for the "Mark as read" and "Mark as unread" function
+			$form['actions']['#prefix'] = '<div style="display:none">';
+			$form['actions']['#suffix'] = '</div>';
+      // check if the message is available then button is visible
+      if ($form['#data']) {
+				// Adding 'Mark as UnRead' button in message list page.
+				$form['mark as unread'] = array(
+					'#type'   => 'submit',
+					'#value'  => t('Mark as UnRead'),
+					'#weight' => 16,
+					'#prefix' => '<div class="message-buttons">',
+				);
+				// Adding 'Mark as Read' button in message list page.
+				$form['mark as read'] = array(
+					'#type'   => 'submit',
+					'#value'  => t('Mark as Read'),
+					'#weight' => 17,
+				);
+				// Adding 'Delete' button in message list page.
+				$form['delete'] = array(
+					'#type'   => 'submit',
+					'#value'  => t('Delete'),
+					'#weight' => 18,
+					'#suffix' => '</div>',
+				);
+			}
+  		// Adding over all count
+			// By this point we have figured out for which user we are listing messages and now it is safe to use $account->uid in the listing query.
+			if((arg(0) == 'messages' && arg(1) == 'inbox') || (!arg(1) && arg(0) == 'messages')) {
+				$query = _privatemsg_assemble_query('list', $user, 'inbox');
+			}
+			else if(arg(0) == 'messages' && arg(1) == 'sent') {
+				$query = _privatemsg_assemble_query('list', $user, 'sent');
+			}
+			$total_count = db_result(db_query($query['count']));
+		  $per_page = count($form['#data']);
+			if($_GET['page'] && $per_page == 10) {
+				$to_disp = $per_page * ($_GET['page'] + 1);
+			} else if($_GET['page'] && $per_page < 10) {
+				$to_disp = $_GET['page'] . $per_page;
+			} else {
+				$to_disp = $per_page;
+			}
+			if($total_count == 0) {
+				$tot_count_zero = ' zero-class';
+			}
+
+			$form['count'] = array(
+				'#value' => '<div class="message-total '.$tot_count_zero.'">' .$to_disp.' of '. $total_count . '</div>',
+				'#weight' => 14,
+			);
+
+			$form['pager']['#weight'] = 15;
+	    break;
+		case 'privatemsg_new':
+			drupal_set_title("New Message");
+			
+
+		  // For loading popup select mulitple user in page
+			//@todo: Need to use popup on compose page
+			//drupal_add_js(drupal_get_path('module', 'eb_search') . '/json_parse.js');
+			//drupal_add_js(array('ed_search_userselect' => array()), 'setting');
+			//drupal_add_js(drupal_get_path('module', 'eb_search') . '/eb_search_popup.js');
+			//drupal_add_js(drupal_get_path('module', 'eb_others') . '/js/eb_others.js');
+			//drupal_add_js(drupal_get_path('module', 'eb_search') . '/jquery.cookie.js');
+			//$form['privatemsg']['recipient']['#prefix'] = '<div class=compose-message><div class=search-img>' . l(theme_image(drupal_get_path('theme', 'educationhub') . "/images/browse-button.jpg"), 'popupsearch/results', array('attributes' => array('class' => 'popups', 'on-popups-options' => '{ width: "350px"}'), 'html' => TRUE)) . '</div>';
+			// Set title  for while composing new message
+			//$form['#prefix'] = (user_access('access new layout'))?(arg(1) == "new")?"<h2>" . t("Compose") . "</h2>":NULL:NULL;
+			// Add subject and message field as required
+			$form['privatemsg']['subject']['#required'] = 1;
+			$form['privatemsg']['body']['#required'] = 1;
+			$form['privatemsg']['recipient_display']['#value'] = str_replace('<strong>Reply to thread</strong>:<br />', '', $form['privatemsg']['recipient_display']['#value']);
+			$form['privatemsg']['preview']['#prefix'] = '<div class="button-main-message">';
+			$form['privatemsg']['cancel']['#suffix'] = '</div>';
+			//$form['privatemsg']['format']['#type']='hidden';
+			$form['privatemsg']['format']['#prefix'] = "<div style=display:none> ";
+      $form['privatemsg']['format']['#suffix'] = "</div>";
+			$form['privatemsg']['recipient']['#description'] = 'Separate multiple names with a comma.';
+			$form['privatemsg']['body'] = array(
+				'#type' => 'textarea',
+				'#title' => 'Message',
+				'#rows' => 6,
+				'#cols' => 10,
+				'#required' => 1,
+		  );
+			drupal_add_js(drupal_get_path('module', 'assignment') . '/js/assignment_validation.js');
+      $form['privatemsg']['body']['#rules'] = array('check_empty');
+			break;
+		case 'privatemsg_filter_form':
+			drupal_add_js(drupal_get_path('module', 'privatemsg_ext') . '/privatemsg_ext.js');
+			break;
+	}
+}
+/**
+ * Delete the heartbeat message once private message is deleted
+ *
+ * @see _heartbeat_activity_delete() in heartbeat.module
+ * @see privatemsg_list_submit() in privatemsg module
+ * @see heartbeat_ids() in eb_others.module
+ */
+function privatemsgext_delete($form, &$form_state) {
+	// Check heart beat module exists
+	if ($form['actions']['delete']['#post']['threads'] && module_exists('heartbeat')) {
+		foreach($form['actions']['delete']['#post']['threads'] as $value) {
+			$query = heartbeat_ids($value, 'heartbeat_receive_privatemsg');
+			if (db_affected_rows()) {
+				while($row = db_fetch_object($query)) {
+					_heartbeat_activity_delete($row->uaid);
+				}
+			}
+		}
+	}
+	// Call private message submit() function after invoke heart beat delete
+	privatemsg_list_submit($form, &$form_state);
+}
+
+function redirect_previous_page() {
+  $redire_url=explode('?',$_SESSION['pre_url_msg']);
+  $_SESSION['exact_url']='';
+  drupal_goto($redire_url[0],$redire_url[1]);
+}
+
+
+function message_update_db($op, $threads=array(),$opValue='', $id=''){
+  global $user;
+  switch($op) {
+    case 'Delete':
+      $currentTime = time();
+      $updateQuery = "UPDATE {pm_index} SET deleted = %d, is_new = %d";
+      $where = " WHERE uid = %d AND mid IN (".implode(", ",$threads).")";
+      $query = $updateQuery.$where; // exit;
+      $update = db_query($query,$currentTime, 0, $user->uid);
+    break;
+    case 'Execute':
+      if ($opValue == 'mark as read') {
+        $updateQuery = "UPDATE {pm_index} SET is_new = %d";
+        $where = " WHERE uid = %d AND mid IN (".implode(", ",$threads).")";
+        $query = $updateQuery.$where; // exit;
+        $update = db_query($query, 0, $user->uid);
+      } elseif ($opValue == 'mark as unread') {
+        $updateQuery = "UPDATE {pm_index} SET is_new = %d";
+        $where = " WHERE uid = %d AND mid IN (".implode(", ",$threads).")";
+        $query = $updateQuery.$where; // exit;
+        $update = db_query($query, 1, $user->uid);
+      }
+    break;
+    case '':
+      if($id == 'edit-delete-2'){
+        $currentTime = time();
+        $updateQuery = "UPDATE {pm_index} SET deleted = %d, is_new = %d";
+        $where = " WHERE uid = %d AND mid IN (".implode(", ",$threads).")";
+        $query = $updateQuery.$where; // exit;
+        $update = db_query($query,$currentTime, 0, $user->uid);
+      }
+    break;
+  }
+}
+
+/**
+ *Implemantation of hook_menu_alter()
+ *Overriding default actions - messages/list - for Messages
+ *For all other content types doing normal action
+ */
+function privatemsg_ext_menu_alter(&$items) {
+	$items['messages/view/%privatemsg_thread']['page callback'] = 'privatemsg_view_ext';
+	$items['messages/list']['access arguments'] = array('private message list');
+	$items['messages/user-name-autocomplete']['page callback'] = 'privatemsg_ext_user_name_autocomplete'; 
+}
+/**
+ *Implementing of hook_perm().
+ *
+ */
+function privatemsg_ext_perm() {
+  return array('private message list');
+}
+
+
+
+function privatemsg_ext_privatemsg_message_insert($message) {
+  global $user;
+	if (arg(0) == 'recommend' && arg(1)) {
+		$text_val = "Recommendation";
+		$comma = ',';
+	}
+	if (arg(0) == 'og' && arg(1) == 'invite') {
+		$text_val = "Invitation to";
+		$comma = '';
+	}
+	else {
+		$text_val = "private message";
+		$comma = ',';
+	}
+
+  $alert_type = 'privatemsg-receipt';
+  if ($message['recipients']) {
+		foreach ($message['recipients'] as $recipient) {
+			$message_id = 'heartbeat_receive_privatemsg';
+			$variables = array(
+				'@member' => eb_others_popup_link($user->name, 'user/' . $user->uid),
+				'@Inbox' => l(truncate_utf8($message['subject'], 80, TRUE, TRUE),'messages/view/'.$message['thread_id'],array('fragment' => 'new')),
+				'@text_message' => $text_val,
+				'@comma' => $comma,
+			);
+			if(function_exists("heartbeat_api_log") && $recipient->uid) {
+				heartbeat_api_log($message_id, $recipient->uid, $user->uid, $message['thread_id'], 0, $variables);
+			}
+		}
+  }
+}
+
+/**
+ * Menu callback for viewing a thread.
+ *
+ * Purpose is to add div for all message and created title for this list
+ *
+ * @param $thread
+ *   A array containing all information about a specific thread, generated by
+ *   privatemsg_thread_load().
+ * @return
+ *   The page content.
+ * @see privatemsg_thread_load()
+ */
+function privatemsg_view_ext($thread) {
+
+  drupal_set_title(check_plain($thread['subject']));
+
+  // Generate paging links.
+  $older = '';
+  if (isset($thread['older_start'])) {
+    $options = array(
+      'query' => array('start' => $thread['older_start']),
+      'title' => t('Display older messages'),
+    );
+     $older = l(t('<<'), 'messages/view/' . $thread['thread_id'], $options);
+  }
+  $newer = '';
+  if (isset($thread['newer_start'])) {
+    $options = array(
+      'query' => array('start' => $thread['newer_start']),
+      'title' => t('Display newer messages'),
+    );
+    $newer = l(t('>>'), 'messages/view/' . $thread['thread_id'], $options);
+  }
+  $substitutions = array('@from' => $thread['from'], '@to' => $thread['to'], '@total' => $thread['message_count'], '!previous_link' => $older, '!newer_link' => $newer);
+  $title = t('!previous_link Displaying messages @from - @to of @total !newer_link', $substitutions);
+  $content['pager_top'] = array(
+    '#value'  => trim($title),
+    '#prefix' => '<div class="privatemsg-view-pager">',
+    '#suffix' => '</div>',
+    '#weight' => -10,
+  );
+
+  // Display a copy at the end.
+  //$content['pager_bottom'] = $content['pager_top'];
+  $content['pager_bottom']['#weight'] = 3;
+  //$title = (user_access('access new layout'))?"<h2>" . check_plain($thread['subject']) . "</h2>":NULL;
+	$title = "<h2>" . check_plain($thread['subject']) . "</h2>";
+  // Render the participants.
+	// The starting div privatemsg-overall is for message and reply form
+  $content['participants']['#value'] = $title . '<div class="privatemsg-overall">' . theme('privatemsg_recipients', $thread);
+  $content['participants']['#weight'] = -5;
+
+  // Render the messages.
+
+  $output = NULL;
+  foreach ($thread['messages'] as $pmid => $message) {
+		$message["subject"] = check_plain($message["subject"]);
+		
+    // Set message as read and theme it.
+    if (!empty($message['is_new'])) {
+      privatemsg_message_change_status($pmid, PRIVATEMSG_READ, $thread['user']);
+    }
+    $output .= theme('privatemsg_view', $message);
+  }
+
+  $content['messages']['#value'] = '<div class="privatemsg-scorll">' . $output . "</div>";
+  $content['messages']['#weight'] = 0;
+
+  // Display the reply form if user is allowed to use it.
+  if (privatemsg_user_access('write privatemsg')) {
+    $content['reply']['#value'] = drupal_get_form('privatemsg_new', $thread['participants'], $thread['subject'], $thread['thread_id'], $thread['read_all']). "</div>" ;
+		// The Ending div privatemsg-overall is for message and reply form
+    $content['reply']['#weight'] = 5;
+  }
+
+  // Check after calling the privatemsg_new form so that this message is only
+  // displayed when we are not sending a message.
+  if ($thread['read_all']) {
+    // User has permission to read all messages AND is not a participant of the current thread.
+    drupal_set_message(t('This conversation is being viewed with escalated priviledges and may not be the same as shown to normal users.'), 'warning');
+  }
+
+  // Allow other modules to hook into the $content array and alter it.
+  drupal_alter('privatemsg_view_messages', $content, $thread);
+  return drupal_render($content);
+}
+
+/**
+ * Query definition to load messages of one or multiple threads.
+ *
+ * @param $fragments
+ *   Query fragments array.
+ * @param $threads
+ *   Array with one or multiple thread id's.
+ * @param $account
+ *   User object for which the messages are being loaded.
+ * @param $load_all
+ *   Deleted messages are only loaded if this is set to TRUE.
+ */
+function privatemsg_ext_privatemsg_sql_messages_alter(&$fragments, $threads, $account = NULL, $load_all = FALSE) {
+  $fragments['order_by'] = array();
+  $fragments['order_by'][]    = 'pm.timestamp DESC';
+  $fragments['order_by'][]    = 'pmi.mid DESC';
+}
+
+function privatemsg_ext_privatemsg_sql_load_alter(&$fragments, $pmids, $account = NULL) {
+	//echopre($fragments);
+  $fragments['order_by'] = array();
+  $fragments['order_by'][]    = 'pm.timestamp DESC';
+  $fragments['order_by'][]    = 'pmi.mid DESC';
+}
+
+
+
+
+
+function ed_pm_send_validate($form, &$form_state) {
+}
+
+function ed_pm_send($form, &$form_state) {
+	  global $user;
+	// Recommend to groups.. Get UId of Member associated Course group..
+	if (isset($form_state['values']['rec_groups'])) {
+		if (is_array($form_state['values']['rec_groups'])) {
+			$subject = $form_state['values']['subject'];
+			$body = $form_state['values']['body'];
+			$to_groups = $form_state['values']['rec_groups'];
+	    if(count($to_groups) > 0) {
+				foreach ($to_groups as $key => $value) {
+					$uid_Group = db_query("SELECT uid FROM (og_uid) WHERE nid=%d", $value);
+					while ($result_Uid = db_fetch_object($uid_Group)) {
+						$rec = array();
+						$temp_user = user_load(array('uid' => $result_Uid->uid));
+						$rec[$temp_user->uid] = $temp_user;
+						// To send mail
+						if (is_array($rec) && (count($rec) > 0) && $temp_user->uid != $user->uid) {
+							privatemsg_mail_send($rec, $user, t($subject), t($body));
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+
+/**
+ * Return First name and last in auto complete search
+ * privatemsg_sql_autocomplete_alter
+ * Adding node and content_type_profile tables
+*/
+ 
+function privatemsg_ext_privatemsg_sql_autocomplete_alter(&$fragments, $search, $names) {
+  global $user;
+  $fragments['select'][] = ' cp.field_profile_first_name_value as first_name,cp.field_profile_last_name_value as last_name, u.uid, u.mail, u.picture ';
+
+  $fragments['inner_join'][] = ' INNER JOIN {node} n ON (u.uid = n.uid) ';
+	$fragments['inner_join'][] = ' INNER JOIN {content_type_profile} cp ON (cp.nid = n.nid) ';
+
+  $fragments['where'][0] = " n.type = 'profile' AND (cp.field_profile_first_name_value LIKE '%s' OR cp.field_profile_last_name_value LIKE '%s')";
+	$fragments['query_args']['where'] = array();
+	
+	$fragments['query_args']['where'][0] = $search .'%%';
+	$fragments['query_args']['where'][1] = $search .'%%';
+	 if (!empty($names)) {
+    // If there are already names selected, exclude them from the suggestions.
+    $fragments['where'][1] = "u.mail NOT IN (". db_placeholders($names, 'text') .")";
+    $fragments['query_args']['where'] += $names;
+  }
+	 
+	$fragments['order_by'][0] = ' cp.field_profile_first_name_value ASC ';
+
+ 
+	
+}
+ 
+/**
+ * Return autocomplete results for usernames.
+ *
+ * Prevents usernames from being used and/or suggested twice.
+*/
+  
+function privatemsg_ext_user_name_autocomplete($string) {
+	$names = array();
+  // 1: Parse $string and build list of valid user names.
+  $fragments = explode(',', $string);
+  foreach ($fragments as $index => $name) {
+    if ($name = trim($name)) {
+      $names[$name] = $name;
+    }
+  }
+  // By using user_validate_user we can ensure that names included in $names are at least logisticaly possible.
+  // 2: Find the next user name suggestion.
+  $fragment = array_pop($names);
+  $matches = array();
+  if (!empty($fragment)) {
+    $query = _privatemsg_assemble_query('autocomplete', $fragment, $names);
+ 
+	
+    $result = db_query_range($query['query'], $fragment, 0, 10);
+    $prefix = count($names) ? implode(", ", $names) .", " : '';
+    // 3: Build proper suggestions and print.
+    while ($user = db_fetch_object($result)) {
+		if( $user->picture ) {
+      $user_pic =   $user->picture;
+    } else {
+      $user_pic =   variable_get('user_picture_default','');
+    }
+
+    $user_image = theme('imagecache', 'autocomplete_user_profile_image_32', $user_pic, '', '');
+    
+		//Call custom function for constructing Autocomplete Users. Written in eb_others.module
+		$res = generate_autocomplete_user_name($user->mail, check_plain($user->first_name), check_plain($user->last_name), $user_image);
+    
+		$matches[$prefix . $user->mail .", "] = $res;      
+  }
+	drupal_json((object)$matches);
+  }
+}
+ 
+/**
+ * Parsing mail and return full user array
+*/ 
+ 
+function privatemsg_ext_privatemsg_name_lookup($string) {
+  if(trim($string)){
+    if ($recipient = user_load(array('mail' => $string))) {
+      return $recipient;
+    }
+  }
+}
+	
+function privatemsg_ext_mail_alter(&$message) {
+	global $user;
+	$temp_user = content_profile_load('profile',$message['params']['recipient']->uid);
+	$first_name = $temp_user->field_profile_first_name[0]['value'];
+	$last_name  = $temp_user->field_profile_last_name[0]['value'];
+	switch ($message['id']) {
+		case "pm_email_notify_notice":
+			$token_replacements = array(
+				'!ed_first_name' => $first_name,
+				'!ed_last_name' => $last_name
+			);
+			// You can also use $message['params']['account']->uid to get more values related to the user like number of new messages (privatemsg) he/she got on the site
+			$message['subject'] = strtr($message['subject'], $token_replacements);
+			$message['body'] 		= strtr($message['body'], $token_replacements);
+		break;
+	}
+}

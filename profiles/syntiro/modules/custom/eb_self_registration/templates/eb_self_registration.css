@@ -1,0 +1,93 @@
+.eb-password-change #edit-pass-wrapper{
+    background: #f8f8f8;
+    padding: 10px 20px 20px;
+}
+.main-content-wrapper .eb-password-change h3{
+    font-size: 2em;
+    margin-top: 15px;
+    color: #444;
+}
+.eb-password-change .info-content{
+    height: 195px;
+    overflow: auto;
+}
+.eb-password-change input.form-submit{
+    margin: 15px 0 0;
+    color:#8b8b8b;
+}
+
+/** user register page styles starts here **/
+body.not-logged-in.page-user.eb-self-register{
+    background: #fff;
+}
+.eb-self-register #main{
+    width: auto;
+    padding:0 0 100px;
+}
+.eb-self-register #content-section, .eb-self-register .main-content-wrapper .title-wrapper h2{
+    width: 952px;
+    margin: 0 auto;
+}
+.eb-self-register #content-section{
+    width: 728px;
+    margin-top: 30px;
+}
+.eb-self-register .main-content-wrapper, .eb-self-register .main-content-wrapper .title-wrapper h2{
+    float: none;
+    display: block;
+}
+.eb-self-register .main-content-wrapper{
+    margin: 0;
+    width: auto;
+}
+.eb-self-register .main-content-wrapper .title-wrapper {
+    background: #E8E8E8;
+    border-bottom: medium none;
+    padding: 16px 0 20px;
+    margin: 0;
+}
+.eb-self-register .main-content-wrapper .title-wrapper h2 {
+    color: #E39B3E;
+    font-size: 1em;
+}
+.captcha img, .quick_link{
+    margin-left: 175px;
+}
+.eb-self-register .form-item .resizable-textarea textarea.form-textarea{
+    width: 240px;
+}
+.top-content, .middle-content{
+    font-size: 2em;
+}
+.orange, .middle-content{
+    color:#e08008;
+}
+.middle-content{
+    border-bottom: 1px solid #d3d3d3;
+    font-weight: bold;
+    padding-bottom: 10px;
+    margin-bottom: 10px;
+}
+.eb-self-register .form-radios .form-item{
+    float: left;
+    display: inline;
+    clear: none;
+    margin: 0 15px 5px 0;
+}
+.eb-self-register a.log-in {
+    background: url("images/button-bg.jpg") repeat-x scroll 0 0 transparent;
+    border: 1px solid #797979;
+    color: #4F4F4F;
+    cursor: pointer;
+    font: bold 0.917em Tahoma,Geneva,sans-serif;
+    padding: 3px 8px;
+    width: auto;
+    margin-right: 10px;
+}
+.quick_link{
+    margin-top: 20px;
+}
+.quick_link a{
+    font-weight: bold;
+}
+/** user register page styles ends here **/

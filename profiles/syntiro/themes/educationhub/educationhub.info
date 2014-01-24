@@ -1,0 +1,25 @@
+; $Id: educationhub.info,v 1.6 2011/31/12 3:47:PM goba Exp $
+name = educationhub
+description = Tableless, recolorable, multi-column, fluid width theme (default).
+version = VERSION
+core = 6.x
+engine = phptemplate
+
+stylesheets[all][] = style.css
+scripts[] = js/educationhub.js
+
+regions[left] = Left sidebar
+regions[right] = Right sidebar
+regions[content_top] = Content Top
+regions[content] = Content
+regions[content_bottom] = Content Bottom
+regions[footer] = Footer
+regions[header] = Header
+regions[header_middle] = Header Middle
+regions[header_login] = Header Login
+regions[footer_bottom] = Footer Bottom
+regions[footer_right] = Footer Right
+regions[footer_upper_right] = Footer Upper Right
+
+project = "educationhub"
+datestamp = "1325346600"

@@ -1,0 +1,107 @@
+<?php
+// $Id$
+/**
+ * @file
+ * Recommend module schema
+ */
+
+function recommend_schema() {
+$schema['recommend'] = array(
+  'description' => t('Recommendation details.'),
+  'fields' => array(
+    'id' => array(
+      'type' => 'serial',
+      'length' => 10,
+      'not null' => TRUE,
+      'description' => '',
+    ),
+    'asset' => array(
+      'type' => 'int',
+      'length' => 15,
+      'not null' => TRUE,
+      'default' => 0,
+      'description' => '',
+    ),
+    'from_uid' => array(
+      'type' => 'int',
+      'length' => 15,
+      'not null' => TRUE,
+      'default' => 0,
+      'description' => '',
+    ),
+    'from_rid' => array(
+      'type' => 'int',
+      'length' => 15,
+      'not null' => TRUE,
+      'default' => 0,
+      'description' => '',
+    ),
+    'to_gid' => array(
+      'type' => 'int',
+      'length' => 15,
+      'not null' => TRUE,
+      'default' => 0,
+      'description' => '',
+    ),
+    'to_uid' => array(
+      'type' => 'int',
+      'length' => 15,
+      'not null' => TRUE,
+      'default' => 0,
+      'description' => '',
+    ),
+    'type' => array(
+      'description' => t('Recommended Node Type.'),
+      'type' => 'varchar',
+      'length' => 255,
+      'not null' => TRUE,
+    ),
+    'title' => array(
+      'description' => t('Recommended Node Title'),
+      'type' => 'text',
+      'not null' => TRUE,
+    ),
+    'description' => array(
+      'description' => t('Description'),
+      'type' => 'text',
+      'not null' => TRUE,
+    ),
+    'timestamp' => array(
+      'description' => t('Recommended date time - timestamp'),
+      'type' => 'int',
+      'unsigned' => TRUE,
+      'not null' => TRUE,
+      'default' => 0,
+    ),
+    'status' => array(
+      'type' => 'int',
+      'length' => 2,
+      'not null' => TRUE,
+      'default' => 0,
+      'description' => '',
+    ),
+  ),
+  'primary key' => array('id'),
+);
+
+  return $schema;
+}
+
+function recommend_install() {
+  drupal_install_schema('recommend');
+}
+
+function recommend_uninstall() {
+  drupal_uninstall_schema('recommend');
+}
+
+//change field type for external link storage
+function recommend_update_6001() {
+ $ret = array();
+ db_change_field($ret, 'recommend', 'asset', 'asset', array(
+       'type' => 'text',
+       'description' => 'external link and asset id',
+     ));
+ return $ret;
+
+}

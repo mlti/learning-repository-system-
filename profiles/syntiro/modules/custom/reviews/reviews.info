@@ -1,0 +1,6 @@
+; $Id: review.info,v 1 2011/03/11 Beschi Exp $
+name = Reviews
+description = Reviews module - Reviews to curriculum
+core = "6.x"
+version = "6.x-1.0"
+package = Education Bridge

@@ -1,0 +1,6 @@
+; $Id: asset.info,v 1.0 2012/01/26 06:20:00 Saravana Exp $
+name = EB Node Actions
+description = Actions(Share, Recommend, Download, ...) performed in node content.
+package = Education Bridge
+version = VERSION
+core = 6.x

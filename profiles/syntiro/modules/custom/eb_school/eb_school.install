@@ -1,0 +1,382 @@
+<?php
+// $Id$
+
+/**
+*@file
+*Install file for school module
+*/
+
+//tablename_schema()
+function school_log_schema() {
+ $schema = array();
+ $schema['school_log'] = array(
+   'description' => t('curriculum_topics table with id, activity, uid, start_timestamp'),
+   'fields' => array(
+     'id' => array(
+       'description' => t('id'),
+       'type' => 'serial',
+       'unsigned' => TRUE,
+       'not null' => TRUE,
+     ),
+     'activity' => array(
+       'description' => t('Activity'),
+       'type' => 'text',
+       'not null' => TRUE,
+     ),
+     'uid' => array(
+       'description' => t('User id'),
+       'type' => 'int',
+       'unsigned' => TRUE,
+       'not null' => TRUE,
+       'default' => 0,
+     ),
+     'start_timestamp' => array(
+       'description' => t('added date time - timestamp'),
+       'type' => 'int',
+       'unsigned' => TRUE,
+       'not null' => TRUE,
+       'default' => 0,
+     ),
+   ),
+   'primary key' => array('id'),
+ );
+ return $schema;
+}
+ /**
+ * Enable this permission by
+ * Asset Module Updates
+ */
+function eb_school_update_6000() {
+  $ret = array();
+  $result = db_result(db_query("SELECT perm FROM {permission} WHERE rid=%d", 3));
+  // Set permission for edit own bead content to site admin
+  $check = strpos($result, 'addclass group');
+  if ($check != TRUE) {
+    $result  = $result .', addclass group';
+    $ret[] = update_sql("UPDATE {permission} SET perm = '" . $result . "' WHERE rid = 3");
+  }
+  $result = db_result(db_query("SELECT perm FROM {permission} WHERE rid=%d", 5));
+  // Set permission for edit own bead content to site admin
+  $check = strpos($result, 'addclass group');
+  if ($check != TRUE) {
+    $result  = $result .', addclass group';
+    $ret[] = update_sql("UPDATE {permission} SET perm = '" . $result . "' WHERE rid = 5");
+  }
+  return $ret;
+}
+ /**
+ * Enable vocabulary to specify content types
+ *
+ * Enable subject and academic level to Playlist cck
+ *
+ */
+function eb_school_update_6001() {
+  $ret = array();
+  // check if table exists 
+  if (db_table_exists('vocabulary_node_types')) {
+    db_query("INSERT INTO {vocabulary_node_types} (vid, type) VALUES (%d, '%s')", 9, 'curriculum');
+    db_query("INSERT INTO {vocabulary_node_types} (vid, type) VALUES (%d, '%s')", 7, 'curriculum');
+    cache_clear_all();
+  }
+  $schema = eb_school_schema_6001();
+  _drupal_initialize_schema('eb_school', $schema);
+  
+  foreach ($schema as $name => $table) {
+    db_create_table($ret, $name, $table);
+  }
+  return $ret;
+}
+
+/**
+ * Called directly by eb_school_update_6001() for updates from Drupal 6.
+ *
+ * Important: Do not edit this schema!
+ *
+ * Updates to the eb_school schema must be provided as eb_school_schema_6xxx() functions,
+ * which eb_school_schema() automatically sees and applies. See below for examples.
+ *
+ * Please do document updates with comments in this function, however.
+ */
+function eb_school_schema_6001() {
+  $schema = array();
+  $schema['curriculum_topics_import'] = array(
+   'description' => t('curriculum_topics_import table with Topic id, cid, topic_title, new node id, weight , timestamp, changed'),
+   'fields' => array(
+     'topic_id' => array(
+       'description' => t('Topic id'),
+       'type' => 'int',
+       'unsigned' => TRUE,
+       'not null' => TRUE,
+       'default' => 0,
+     ),
+     'cid' => array(
+       'description' => t('Curriculum id'),
+       'type' => 'int',
+       'unsigned' => TRUE,
+       'not null' => TRUE,
+       'default' => 0,
+     ),
+     'topic_title' => array(
+       'description' => t('Topic Title'),
+       'type' => 'text',
+       'not null' => TRUE,
+     ),
+    'topic_type' => array(
+       'description' => t('Topic Type'),
+       'type' => 'varchar',
+       'length' => 255,
+       'not null' => TRUE,
+    ),
+    'new_id' => array(
+       'description' => t('Node id or Url '),
+       'type' => 'text',
+       'not null' => TRUE,
+     ),
+     'weight' => array(
+       'description' => t('Order of the Curriculum '),
+       'type' => 'varchar',
+       'length' => 255,
+       'not null' => TRUE,
+       'default' => '',
+     ),
+     'created' => array(
+       'description' => t('added date time - timestamp'),
+       'type' => 'int',
+       'unsigned' => TRUE,
+       'not null' => TRUE,
+       'default' => 0,
+     ),
+     'changed' => array(
+       'description' => t('changed date time - timestamp'),
+       'type' => 'int',
+       'unsigned' => TRUE,
+       'not null' => TRUE,
+       'default' => 0,
+     ),
+   ),
+ );
+ $schema['curriculum_topics_assets_import'] = array(
+    'description' => t('curriculum_topics_assets_import table with id, Topic id, asset node id or URL, Type of the content,title of the content, Description of the content, new node id, weight , user id, is admin id ,timestamp, changed'),
+    'fields' => array(
+      'id' => array(
+       'description' => t('id'),
+       'type' => 'serial',
+       'unsigned' => TRUE,
+       'not null' => TRUE,
+     ),
+     'topic_id' => array(
+       'description' => t('Topic id'),
+       'type' => 'int',
+       'unsigned' => TRUE,
+       'not null' => TRUE,
+       'default' => 0,
+     ),
+     'asset' => array(
+       'description' => t('Node id or Url '),
+       'type' => 'text',
+       'not null' => TRUE,
+     ),
+     'type' => array(
+       'description' => t('Category Typ'),
+       'type' => 'varchar',
+       'length' => 255,
+       'not null' => TRUE,
+     ),
+     'title' => array(
+       'description' => t('Title'),
+       'type' => 'text',
+       'not null' => TRUE,
+     ),
+     'description' => array(
+       'description' => t('Description'),
+       'type' => 'text',
+       'not null' => TRUE,
+     ),
+    'new_id' => array(
+       'description' => t('Node id or Url '),
+       'type' => 'text',
+       'not null' => TRUE,
+     ),
+     'weight' => array(
+       'description' => t('Order of the Curriculum '),
+       'type' => 'varchar',
+       'length' => 255,
+       'not null' => TRUE,
+       'default' => '',
+     ),
+     'is_admin' => array(
+       'description' => t('Author Id'),
+       'type' => 'int',
+       'unsigned' => TRUE,
+       'not null' => TRUE,
+       'default' => 0,
+     ),
+     'created' => array(
+       'description' => t('added date time - timestamp'),
+       'type' => 'int',
+       'unsigned' => TRUE,
+       'not null' => TRUE,
+       'default' => 0,
+     ),
+     'changed' => array(
+       'description' => t('changed date time - timestamp'),
+       'type' => 'int',
+       'unsigned' => TRUE,
+       'not null' => TRUE,
+       'default' => 0,
+     ),
+    ),
+    'primary key' => array('id'),
+  );
+  // Create the quiz node relationship table
+  $schema['quiz_node_relationship_import'] = array(
+    'description' => 'Table storing what questions belong to what quizzes',
+    'fields' => array(
+      'parent_nid' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'child_nid' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'question_status' => array(
+        'type' => 'int',
+        'size' => 'tiny',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 1,
+      ),
+      'weight' => array(
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'max_score' => array(
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'new_nid' => array(
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'new_vid' => array(
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+    ),
+  );
+  // Create the quiz node relationship questions table
+  $schema['quiz_node_relationship_questions_import'] = array(
+    'description' => 'Table storing what questions',
+    'fields' => array(
+      'child_nid' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'new_nid' => array(
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'new_vid' => array(
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+    ),
+  );
+  return $schema;
+}
+ /**
+ * Enable vocabulary to specify content types
+ *
+ * Enable subject and academic level to Playlist cck
+ *
+ */
+function eb_school_update_6002() {
+  $ret = array();
+  $schema = eb_school_schema_6002();
+  _drupal_initialize_schema('eb_school', $schema);
+  
+  foreach ($schema as $name => $table) {
+    db_create_table($ret, $name, $table);
+  }
+  return $ret;
+}
+/**
+ * Called directly by eb_school_update_6002() for updates from Drupal 6.
+ *
+ * Important: Do not edit this schema!
+ *
+ * Updates to the eb_school schema must be provided as eb_school_schema_6xxx() functions,
+ * which eb_school_schema() automatically sees and applies. See below for examples.
+ *
+ * Please do document updates with comments in this function, however.
+ */
+function eb_school_schema_6002() {
+  $schema = array();
+  $schema['import_track'] = array(
+    'description' => t('track the imported node details'),
+    'fields' => array(
+      'id' => array(
+       'description' => t('id'),
+       'type' => 'serial',
+       'unsigned' => TRUE,
+       'not null' => TRUE,
+     ),
+     'nid' => array(
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'new_nid' => array(
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+     'type' => array(
+       'description' => t('Category Typ'),
+       'type' => 'varchar',
+       'length' => 255,
+       'not null' => TRUE,
+     ),
+     'sitename' => array(
+       'description' => t('Title'),
+       'type' => 'text',
+       'not null' => TRUE,
+     ),
+     'created' => array(
+       'description' => t('added date time - timestamp'),
+       'type' => 'int',
+       'unsigned' => TRUE,
+       'not null' => TRUE,
+       'default' => 0,
+     ),
+     'changed' => array(
+       'description' => t('changed date time - timestamp'),
+       'type' => 'int',
+       'unsigned' => TRUE,
+       'not null' => TRUE,
+       'default' => 0,
+     ),
+    ),
+    'primary key' => array('id'),
+  );
+  return $schema;
+}
+//hook_install()
+function eb_school_install() {
+ drupal_install_schema('school_log');
+}
+
+//hook_uninstall()
+function eb_school_uninstall() {
+ drupal_uninstall_schema('school_log');
+}

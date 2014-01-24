@@ -1,0 +1,876 @@
+<?php
+
+//Include inc file
+module_load_include('inc', 'eb_user_points', 'eb_user_points');
+define('BEGIN_TO_PARTICIPATE_EDUBRIDGE',      'Begin to Participate in Edubridge');
+define('CREATE_COMM',  'Creation of Community');
+define('MEMBER_JOIN_HIS_COMM', 'A member joins his community');
+define('MEMBER_LEAVES_HIS_COMM',  'A member leaves his community');
+define('USER_JOIN_A_COMM',  'User Joins Community');
+define('CREATE_DISCUSSION_IN_OWN_COMM',  'Creation of discussion in your own community');
+define('CREATE_DISCUSSION_IN_OTHERS_COMM',  'Creation of discussion in other community');
+define('POST_COMMENT_IN_OWN_DISS',  'Post Comments to Own discussion');
+define('POST_COMMENT_IN_OTHERS_DISS',  'Post Comments to Others discussion');
+define('STUD_DIDNT_COMP_ASSIGN_IN_WEEK', 'Student is Assigned an Assignment and does not complete after a week of receiving the assignment');
+define('STUD_COMP_ASSIGN_IN_WEEK',  'Students complete Assignment within a week of receiving');
+define('STUD_COMP_ASSIGN',  'Student completes an Assignment');
+define('UNASSIGN_AN_ASSIGNMENT',  'Points earn by an user on unassign an assignment');
+//define('LOGIN_EDUBRIDGE_DAILY_ONCE',  'Login to EducationHub daily once');
+define('RECOMMEND_TO_FRIENDS',  'Recommendations to Friend');
+
+/**
+ * Implementation of hook_menu().
+ */
+function eb_user_points_menu() {
+  $items = array();
+  $items['admin/settings/eb_userpoints'] = array(
+    'title'            => 'EB User Points settings',
+    'page callback'    => 'drupal_get_form',
+    'page arguments'   => array('eb_userpoints_admin_settings'),
+    'access arguments' => array('administer userpoints'),
+    'type'             => MENU_NORMAL_ITEM
+  );
+  $items['admin/settings/eb_max_score'] = array(
+    'title'            => 'EB Maximum Score settings',
+    'page callback'    => 'drupal_get_form',
+    'page arguments'   => array('eb_max_score_admin_settings'),
+    'access arguments' => array('administer userpoints'),
+    'type'             => MENU_NORMAL_ITEM
+  );
+  $items['eb_user_points'] = array(
+    'page callback'   => 'return_user_level_test',
+    'access callback' => TRUE,
+    'type'            => MENU_CALLBACK,
+  );
+  return $items;
+} 
+/**
+ * Implementation of hook_theme()
+ */
+function eb_user_points_theme(){
+  return array(
+          'eb_userpoints_admin_form' => array(
+            'arguments' => array('form' => NULL),
+          ),               
+        ); 
+}
+ 
+/**
+ * Custom function for EB User points admin settings
+ */
+function eb_userpoints_admin_settings(){
+ $form = array();
+
+ $points_details = array(
+                         'participate_begins' => BEGIN_TO_PARTICIPATE_EDUBRIDGE,
+                         'community_creation' => CREATE_COMM,
+                         'joins_his_community' => MEMBER_JOIN_HIS_COMM,
+                         'leaves_his_community' => MEMBER_LEAVES_HIS_COMM,
+                         'joins_others_community' => USER_JOIN_A_COMM,
+                         'discussion_in_own_community' => CREATE_DISCUSSION_IN_OWN_COMM,
+                         'discussion_in_other_community' => CREATE_DISCUSSION_IN_OTHERS_COMM,
+                         'comment_in_own_discussion' => POST_COMMENT_IN_OWN_DISS,
+                         'comment_in_other_discussion' => POST_COMMENT_IN_OTHERS_DISS,
+                         'assignment_not_completed' => STUD_DIDNT_COMP_ASSIGN_IN_WEEK,
+                         'assignment_completed_week' => STUD_COMP_ASSIGN_IN_WEEK,
+                         'assignment_completed' => STUD_COMP_ASSIGN,
+                         //'login_once' => LOGIN_EDUBRIDGE_DAILY_ONCE,
+                         'recommend_to_friends' => RECOMMEND_TO_FRIENDS,
+                        );
+  
+  foreach($points_details as $key => $value) {
+    $form[$key]['label_' . $key] = array(
+                        '#type' => 'markup',
+                        '#value' => $value,
+                        );
+    $form[$key]['points_' . $key] = array(
+                        '#type' => 'textfield',
+                        '#size' => 10,
+                        '#default_value' => variable_get('points_' . $key, ''),
+                        );
+    $form[$key]['limits_' . $key] = array(
+                        '#type' => 'textfield',
+                        '#size' => 10,
+                        '#default_value' => variable_get('limits_' . $key, ''),
+                        );
+  }
+  $form['eb_days'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('User Points'),
+    '#collapsible' => TRUE,
+    '#collapsed' => FALSE,
+  );
+  $form['eb_days']['eb_assignment_days'] = array(
+  '#type' => 'textfield',
+  '#title' => t('Negative marks for late assignment complete'),
+  '#default_value' => variable_get('eb_assignment_days', '7'),
+  '#size' => 10
+);
+  
+  
+  //$form = system_settings_form($form);
+  //$form['#theme'] = 'eb_userpoints_admin_form';
+ return system_settings_form($form);
+}
+
+/**
+ * Custom function for EB User points admin settings
+ */
+
+function eb_max_score_admin_settings() {
+ $form = array();
+ 
+  $form['max_score_label'] = array(
+                        '#type' => 'markup',
+                        '#value' => 'Max score',
+                        );
+  $form['max_score_points'] = array(
+                        '#type' => 'textfield',
+                        '#size' => 10,
+                        '#default_value' => variable_get('max_score_points',5000)
+                        );
+    $form['re_max_score_label'] = array(
+                        '#type' => 'markup',
+                        '#value' => 'Re Max score',
+                        );
+  $form['re_max_score_points'] = array(
+                        '#type' => 'textfield',
+                        '#size' => 10,
+                        '#default_value' => variable_get('re_max_score_points',0)
+                        );
+      $form['re_max_score_com_label'] = array(
+                        '#type' => 'markup',
+                        '#value' => 'Re Max score for community',
+                        );
+  $form['re_max_score_points_com'] = array(
+                        '#type' => 'textfield',
+                        '#size' => 10,
+                        '#default_value' => variable_get('re_max_score_points_com',0)
+                        ); 
+ return system_settings_form($form);
+}
+
+//function theme_eb_userpoints_admin_form($form){
+//  $header = array(t('Actions'), t('Points'), t('Limits'));
+//  
+//  foreach($form['label'] as $key => $value){
+//    $row = array();
+//    $row[] = drupal_render($form['label']);
+//    //$row[] = drupal_render($form['points'][$key]);
+//    //$row[] = drupal_render($form['limits'][$key]);
+//    $rows[] = $row;
+//  }
+//  echopre($rows);
+//  exit;
+//  //// This is where we create the table using theme()
+//  //$output .= theme('table', $header, $rows);
+//  //// Now we render whatever is left of the table, for instance the submit buttons
+//  //$output .= drupal_render($form);
+//  //
+//  //return $output;
+//}
+//
+function echopres($val, $exit = FALSE){
+  if($_SERVER['REMOTE_ADDR'] == '192.168.99.78'){
+    print '<pre>';
+    print_r($val);
+    print '</pre>';    
+  }
+  
+  if($exit){
+    exit;
+  }
+}
+
+/**
+ * Implementation of hook_user()
+ */
+function eb_user_points_user($op, &$edit, &$account, $category = NULL){
+  global $user;
+  switch($op){
+    case 'insert':
+      //Set a custom data First Time Login as 1.
+      $edit['first_time_login'] = 1;
+    break;
+    case 'login':
+      //Retrive and check the custom data First Time Login. We only give the points on Users first time login.
+      if ($account->first_time_login) {
+        //Save the users as First time login 0.
+        user_save($account, array('first_time_login' => 0));
+
+        //get the term id from term name. 
+        if(function_exists('_get_user_points_term_id')){
+          //written in eb_user_points.module
+          $tid = _get_user_points_term_id('users');
+
+          //Define User points parameters.
+          $params = array (
+                    'uid' => $account->uid,
+                    'points' => variable_get('points_participate_begins', 0),
+                    'description' => BEGIN_TO_PARTICIPATE_EDUBRIDGE,
+                    'entity_id' => $account->uid,
+                    'entity_type' => 'Participate',
+                    'tid' => $tid
+                  );
+          // Check userpoints module should be enabled
+          if (module_exists('userpoints')) {
+            userpoints_userpointsapi($params);
+          }
+        }
+      }
+      
+      if (variable_get('eb_assignment_days', 7) > 0) {   
+        //Checking for assginment not complete in seven days
+        $ltime = time() - (86400 * variable_get('eb_assignment_days', 7));
+        //$res = db_query("SELECT assign.aid AS aid
+        //                        FROM {assignment} assign
+        //                        INNER JOIN {assignment_assign} aa ON (aa.st_id  = assign.st_id AND aa.uid = assign.to_uid)
+        //                        LEFT JOIN {eb_assignment_neg_pts} ass_neg on assign.aid = ass_neg.aid
+        //                        WHERE assign.to_uid = %d AND
+        //                              aa.uid = %d AND
+        //                              aa.status = %d AND
+        //                              aa.assign_status = %d AND
+        //                              assign.created <= %d AND
+        //                              ass_neg.aid IS NULL", $user->uid, $user->uid, 1, 1, $ltime);
+              
+        $res = db_query("SELECT assign.aid AS aid FROM {assignment} assign
+                        INNER JOIN {assignment_assign} aa ON aa.st_id  = assign.st_id
+                        INNER JOIN {curriculum_topics_assets} curriculum ON assign.link = curriculum.asset
+                        LEFT JOIN {eb_assignment_neg_pts} ass_neg on assign.aid = ass_neg.aid
+                        WHERE assign.to_uid = %d AND
+                        aa.uid = %d AND
+                        aa.status = %d AND
+                        aa.assign_status = %d AND
+                        assign.created <= %d AND
+                        ass_neg.aid IS NULL
+                        GROUP BY assign.from_uid, assign.to_uid, assign.link", $user->uid, $user->uid, 1, 1, $ltime);
+        
+        while($assignment = db_fetch_object($res)) {
+          $point_type = 'assignment_negative';
+          $point_details = 'points_assignment_not_completed';
+          $point_desc = STUD_DIDNT_COMP_ASSIGN_IN_WEEK;
+          assignment_incompletion_points($point_details, $point_desc, $point_type, $assignment->aid);
+          
+          //Put entry in "eb_assignment_neg_pts", when we give negative user points for Incomplete assignment.
+          $param = array();
+          $param['aid'] = $assignment->aid;
+          $param['uid'] = $user->uid;
+          drupal_write_record('eb_assignment_neg_pts', $param);
+        }
+      }
+    break;
+  }
+}
+
+/**
+ * Implementation of hook_nodeapi()
+ */
+function eb_user_points_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL){
+  global $user;
+  switch($op){
+    case 'insert':
+      switch($node->type){
+        case 'community_interest_group':
+          $point_details = 'points_community_creation';
+          $point_desc = CREATE_COMM;
+          $point_type = 'community';
+          //Get the maximum limit to create a community per hour
+          $limit = variable_get('limits_community_creation', '');
+          if(eb_check_points($node->type, $limit, $node->created, 1, 0, 1)){
+            post_content_points($point_details, $point_desc, $point_type, $node->nid);
+            $param = array('uid' => $user->uid, 'type' => $node->type, 'nid' => $node->nid, 'author' => 1, 'timestamp' => $node->created);
+            eb_check_points_insert($param);
+          }
+        break;
+        case 'discussion':
+          //Get the COmmunity node which the discussion posted
+          foreach($node->og_groups as $key => $value){
+            $groupnode = node_load($key);
+          }
+          //Post a discussion in Own Community(User as Group Admin)
+          if($groupnode->uid == $user->uid){
+            $point_details = 'points_discussion_in_own_community';
+            $point_desc = CREATE_DISCUSSION_IN_OWN_COMM;
+            $point_type = 'discussion';
+            //Get the maximum limit to post a discussion per hour
+            $limit = variable_get('limits_discussion_in_own_community', '');
+            if(eb_check_points($node->type, $limit, $node->created, 1, 0, 1)){
+              post_content_points($point_details, $point_desc, $point_type, $node->nid);
+              $param = array('uid' => $user->uid, 'type' => $node->type, 'nid' => $node->nid, 'author' => 1, 'timestamp' => $node->created);
+              eb_check_points_insert($param);
+            }
+          }
+          else {//Post a discussion in others Community(User as Group Member)
+            $point_details = 'points_discussion_in_other_community';
+            $point_desc = CREATE_DISCUSSION_IN_OTHERS_COMM;
+            $point_type = 'discussion';
+            //Get the maximum limit to post a discussion per hour
+            $limit = variable_get('limits_discussion_in_other_community', '');
+            if(eb_check_points($node->type, $limit, $node->created, 1, 0, 0)){
+              post_content_points($point_details, $point_desc, $point_type, $node->nid);
+              $param = array('uid' => $user->uid, 'type' => $node->type, 'nid' => $node->nid, 'author' => 0, 'timestamp' => $node->created);
+              eb_check_points_insert($param);
+            }
+          }
+        break;
+      }
+    break;
+  }
+}
+
+/**
+ * Implemetation of hook_og()
+ */
+//function eb_user_points_og($op, $gid, $uid, $args){
+//  global $user;
+//  $groupnode = node_load($gid);
+//  $affected_user = user_load($uid);
+//  switch ($op) {
+//    case 'user insert':
+//      //this hook also executed in community creation. so we need to restrict the same in userpoints
+//      if($groupnode->uid != $user->uid){
+//        membership_points($groupnode, $affected_user, 'join');
+//      }
+//    break;
+//    case 'user approve':
+//      membership_points($groupnode, $affected_user, 'join');
+//    break;
+//    case 'user delete':
+//      //When a user Leave a Group him/herself. Not the group admin remove the users/members
+//      if($user->uid == $affected_user->uid){
+//        membership_points($groupnode, $affected_user, 'leave');
+//      }
+//    break;
+//  }
+//}
+
+/**
+ * Implementation of hook_comment()
+ */
+function eb_user_points_comment(&$a1, $op){
+  global $user;
+  switch($op){
+    case 'insert':
+      //Get commented node object
+      $comment_node = node_load($a1['nid']);
+      //Check whether comment posted in his/her own discussion
+      if($comment_node->uid == $user->uid){
+        $point_details = 'points_comment_in_own_discussion';
+        $point_desc = POST_COMMENT_IN_OWN_DISS;
+        $point_type = 'comment';
+        //Get the maximum limit to post comment in a discussion per hour
+        $limit = variable_get('limits_comment_in_own_discussion', '');
+        if(eb_check_points($comment_node->type, $limit, $a1['timestamp'], 1, 1, 1)){        
+          post_content_points($point_details, $point_desc, $point_type, $comment_node->nid);
+          $param = array('uid' => $user->uid, 'type' => $comment_node->type, 'nid' => $comment_node->nid, 'cid' => $a1['cid'], 'flag' => 1, 'author' => 1, 'timestamp' => $a1['timestamp']);
+          eb_check_points_insert($param);
+        }
+      }
+      else {//Check whether comment posted in others discussion
+        $point_details = 'points_comment_in_other_discussion';
+        $point_desc = POST_COMMENT_IN_OTHERS_DISS;
+        $point_type = 'comment';
+        //Get the maximum limit to post comment in a discussion per hour
+        $limit = variable_get('limits_comment_in_other_discussion', '');
+        if(eb_check_points($comment_node->type, $limit, $a1['timestamp'], 1, 1, 0)){    
+          post_content_points($point_details, $point_desc, $point_type, $comment_node->nid);
+          $param = array('uid' => $user->uid, 'type' => $comment_node->type, 'nid' => $comment_node->nid, 'cid' => $a1['cid'], 'flag' => 1, 'author' => 0, 'timestamp' => $a1['timestamp']);
+          eb_check_points_insert($param);          
+        }
+      }
+    break;
+  }
+}
+
+/**
+ * Custom function to earn Userpoint on Community and Discussion creation.
+ * @func => Put the User points for corresponding users (Group Admin/Group Members)
+ * @param $point_details => Variable name of which points to be earned by user.
+ * @param $point_desc => Description of which points to be earned by user.
+ * @param $point_type => Which is used as Entity type in "userpoints_txn" schema
+ *
+ * @return => null
+ */
+function post_content_points($point_details, $point_desc, $point_type, $node_id){
+  global $user;
+
+  //get the term id from term name. 
+  if(function_exists('_get_user_points_term_id')){
+    //written in eb_user_points.module
+    $tid = _get_user_points_term_id('community');
+  
+    //Define User points parameters.
+    $params = array (
+              'uid' => $user->uid,
+              'points' => variable_get($point_details , 0),
+              'description' => $point_desc,
+              'entity_id' => $node_id,
+              'entity_type' => $point_type,
+              'tid' => $tid,
+              'operation' => 'insert',
+            );
+    
+    // Check userpoints module should be enabled
+    if (module_exists('userpoints')) {
+      userpoints_userpointsapi($params);
+    }
+  }
+}
+
+/**
+ * Custom function to earn Userpoint on User join a community.
+ * @func => Put the User points for corresponding users (Group Admin/Group Members)
+ * @param $groupnode => Object of the Group node.
+ * @param $affecteduser => User Object of OG Affected/Performed user
+ * @param $type => join/leave
+ *
+ * @return => null
+ */
+function membership_points($groupnode, $affected_user, $type = NULL){
+  global $user;
+  if($type == 'join'){
+    //get the term id from term name. 
+    if(function_exists('_get_user_points_term_id')){
+      //written in eb_user_points.module
+      $tid = _get_user_points_term_id('community');
+
+      //When a user join his/her(owner) community he/she(owner) will earn points.
+        //Define User points parameters.
+        $owner_points = array (
+                  'uid' => $groupnode->uid,
+                  'points' => variable_get('points_joins_his_community', 0),
+                  'description' => MEMBER_JOIN_HIS_COMM,
+                  'entity_id' => $groupnode->uid,
+                  'entity_type' => 'Community',
+                  'tid' => $tid,
+                  'operation' => 'insert',
+                );
+        // Check userpoints module should be enabled
+        if (module_exists('userpoints')) {
+          userpoints_userpointsapi($owner_points);
+        }
+    }
+    //When a user join others community he/she(member) will earn points.
+      //Define User points parameters.
+      $members_points = array (
+                'uid' => $affected_user->uid,
+                'points' => variable_get('points_joins_others_community', 0),
+                'description' => USER_JOIN_A_COMM,
+                'entity_id' => $affected_user->uid,
+                'entity_type' => 'Community',
+                'tid' => $term[0]->tid,
+                'operation' => 'insert',
+              );
+      // Check userpoints module should be enabled
+      if (module_exists('userpoints')) {
+        userpoints_userpointsapi($members_points);
+      }                  
+  }
+  else if($type == 'leave'){
+    //get the term id from term name. 
+    if(function_exists('_get_user_points_term_id')){
+      //written in eb_user_points.module
+      $tid = _get_user_points_term_id('community');
+
+      //When a user leave himself/herself(member) from a community, he/she(owner) will lose points.
+        //Define User points parameters.
+        $owner_points = array (
+                  'uid' => $groupnode->uid,
+                  'points' => variable_get('points_leaves_his_community', 0),
+                  'description' => MEMBER_LEAVES_HIS_COMM,
+                  'entity_id' => $groupnode->uid,
+                  'entity_type' => 'Community',
+                  'tid' => $tid,
+                  'operation' => 'remove',
+                );
+        // Check userpoints module should be enabled
+        if (module_exists('userpoints')) {
+          userpoints_userpointsapi($owner_points);
+        }
+    }
+  }
+}
+
+
+/**
+ * Custom function to get the Term ID from Term name in Userpoints Vocabulary
+ * @param - $term_name - Name of the Taxonomy term
+ *
+ * @result - $tid - ID of the Taxonomy term
+ */
+function _get_user_points_term_id($term_name){
+  //Get Term ID for users activity. We need to check the term id is get from the Userpoints vocabulary itself.
+  $term = taxonomy_get_term_by_name($term_name);
+
+  if(isset($term) && count($term) > 0){
+    foreach($term as $key => $value){
+      if($term[$key]->vid == userpoints_get_vid()){
+        $tid = $term[$key]->tid;
+        return $tid;
+      }          
+    }
+  }
+  return NULL;
+}
+
+
+/**
+ * Custom function to get user point level
+ * @param - Uid [optional]
+ *
+ * @result - array wih details of current point level
+ */ 
+function return_user_level($uid = 0) {
+  if ($uid == 0) {
+    global $user;
+    $uid = $user->uid;
+  }
+  $tot_pts = userpoints_get_current_points($uid, 'all');  
+  if (variable_get('max_score_points', 5000) >= variable_get('re_max_score_points',0)) {
+    $max_points = variable_get('max_score_points',5000);
+  }
+  else {
+    $max_points = variable_get('re_max_score_points',5000);
+  }
+  $usr_per = 0; 
+  if ($tot_pts && $tot_pts > 0) {
+    $usr_per = round(($tot_pts / $max_points) * 100);
+  }
+  
+  $comm_tid = _get_user_points_term_id('community'); // get only community score only
+  $tot_com_pts = userpoints_get_current_points($uid, $comm_tid);
+  if (variable_get('max_score_points', 5000) >= variable_get('re_max_score_points_com',0)) {
+    $max_points_com = variable_get('max_score_points',5000);
+  }
+  else {
+    $max_points_com = variable_get('re_max_score_points_com',5000);
+  }
+  $usr_com_per = 0;
+  if ($tot_com_pts && $tot_com_pts > 0) {
+    $usr_com_per = round(($tot_com_pts / $max_points_com) * 100);
+  }
+  $assign_per = get_user_assignment_com_percentage();
+  
+  $pts_result = array();
+  $pts_result['assingment_comp_per'] = round($assign_per);
+  $pts_result['bridge_pts'] = round($tot_pts);
+  $pts_result['community_pers'] = round($usr_com_per);
+  $pts_result['tot_com_pts'] = $tot_com_pts;
+  
+  if ($usr_per <= 10) {
+    $pts_result['level'] = 'Level I';
+    $pts_result['label'] = 'Explorer';
+    $pts_result['level_per'] = round($usr_per); 
+  }
+  else if ($usr_per >= 11 && $usr_per <= 25) {
+    $pts_result['level'] = 'Level II';
+    $pts_result['label'] = 'Builder';
+    $pts_result['level_per'] = round($usr_per);
+  }
+  else if ($usr_per >= 26 && $usr_per <= 50) {
+    $pts_result['level'] = 'Level III';
+    $pts_result['label'] = 'Groupy';
+    $pts_result['level_per'] = round($usr_per);
+  }
+  else if ($usr_per >= 51 && $usr_per <= 75) {
+    $pts_result['level'] = 'Level IV';
+    $pts_result['label'] = 'Catalyst';
+    $pts_result['level_per'] = round($usr_per);
+  }
+  else if ($usr_per >= 76) {
+    $pts_result['level'] = 'Level V';
+    $pts_result['label'] = 'Super star';
+    $pts_result['level_per'] = round($usr_per);
+  }
+  return $pts_result;
+}
+
+
+// hook_userpoints
+// api : http://drupal.org/node/206558
+function eb_user_points_userpoints($op = NULL, $params = NULL) {
+  switch ($op) {
+    case 'points after':
+      //static max score, can be reset by admin, initially at 5000
+      $max_points = variable_get('max_score_points',5000);
+     
+      //maintaining Overall max score
+      $points = userpoints_get_current_points($params['uid'], 'all');
+      
+      $re_max_points = variable_get('re_max_score_points',0);
+     
+      
+      if ($max_points >= $re_max_points) {
+        $max = $max_points;
+      }
+      else {
+        $max = $re_max_points;
+      }
+      if ($points > $max) {
+        variable_set('re_max_score_points', $points);
+      }
+      
+      //maintaining Community max score
+      $com_points = userpoints_get_current_points($params['uid'], $tid);
+      $re_max_points_com = variable_get('re_max_score_points_com',0);
+      
+      if ($max_points >= $re_max_points_com) {
+        $max = $max_points;
+      }
+      else {
+        $max = $re_max_points_com;
+      }
+      if ($com_points > $max) {
+        variable_set('re_max_score_points_com', $com_points);
+      } 
+    break;
+  } 
+}
+
+/**
+ * Custom hook mainly for Assignment, Recommend functionality
+ * hook_eb_points()
+ */
+function eb_user_points_eb_points($op, $record) {
+  global $user;
+  switch ($op) {
+    case 'after save':
+      //User points for Assignment completion functionality
+      if ($record['type'] == 'quiz_assignment' || $record['type'] == 'asset_assignment') {
+        //Give Userpoints on Quiz Assignment completion
+        //Get the time difference between assignment assigned and completed time
+        $diff = time() - $record['created'];
+        $days = $diff/86400;
+        $point_type = 'assignment_completed';
+    
+        //Check whether the assignment completed within a week
+        if($days <= variable_get('eb_assignment_days', '7')){
+          $point_details = 'points_assignment_completed_week';
+          $point_desc = STUD_COMP_ASSIGN_IN_WEEK;
+          //Written in assigment_form.inc
+          assignment_completion_points($point_details, $point_desc, $point_type, $record['aid']);
+        }
+        else {//Check whether the assignment completed after a week
+          $check_negative = db_result(db_query("SELECT COUNT(*) FROM {eb_assignment_neg_pts} WHERE aid = %d AND uid = %d", $record['aid'], $user->uid));
+          if($check_negative){
+            $point_details = 'points_assignment_completed';
+            $point_desc = STUD_COMP_ASSIGN;
+            //Written in assigment_form.inc
+            assignment_completion_points($point_details, $point_desc, $point_type, $record['aid']);            
+          }
+          else{
+            //If the user didn't logout for past more than seven days and he didn't complete some assignment. Here we didn't gave negative points. So when he complete the assignment we don't give any user points.
+          }
+        }
+      }
+      //User points for Recommend functionality
+      if($record['type'] == 'recommend'){
+        //Code for User points in recommend functionality. We give points only for the limited user recommend.
+        $limit = variable_get('limits_recommend_to_friends', 10);
+        $point_details = 'points_recommend_to_friends';
+        $point_desc = RECOMMEND_TO_FRIENDS;
+        $point_type = 'recommend';
+        //Get the maximum limit to post a discussion per hour
+        if(eb_recomm_check_points($limit, time(), 1)){
+          recommend_content_points($point_details, $point_desc, $point_type);
+          $param = array('from_uid' => $record['from_uid'], 'to_uid' => $record['to_uid'], 'timestamp' => time());
+          eb_recomm_check_points_insert($param);
+        }          
+      }
+    break;
+    case 'unassign':
+      //Get assignment id from subtopic and to user id.
+      $assign_id = db_result(db_query("SELECT assign.aid FROM {assignment} assign INNER JOIN {assignment_assign} aa ON aa.st_id  = assign.st_id WHERE assign.st_id = %d AND assign.to_uid = %d", $record['st_id'], $record['to_uid']));
+      if($assign_id){
+        //Check whether the student get negative mark for the particular assignment
+        $negative_check = db_result(db_query("SELECT COUNT(*) FROM {eb_assignment_neg_pts} WHERE aid = %d", $assign_id));
+        if($negative_check){
+          //Need to delete the negative points entry and give corresponding user points.
+          db_query("DELETE FROM {eb_assignment_neg_pts} WHERE aid = %d", $assign_id);
+
+          //Code for User points for unassign functionality. We give points for the unassign assignment.
+          $point_details = 'points_assignment_not_completed';
+          $point_desc = UNASSIGN_AN_ASSIGNMENT;
+          $point_type = 'revert_negative_points';
+          unassign_content_points($point_details, $point_desc, $point_type, $assign_id, $record['to_uid']);          
+        }
+      }
+    break;
+  }
+}
+
+/**
+ * Custom function to give negative points on each incompletion assignment
+ * @func - Put the negative User points for corresponding users who didn't completed the Assignment after a week
+ * @param $point_details => Variable name of which points to be earned/lose by user.
+ * @param $point_desc => Description of which points to be earned/lose by user.
+ * @param $point_type => Which is used as Entity type in "userpoints_txn" schema
+ * @param $assignment_id => completed assignment id.
+ *
+ * @return => null
+ */
+function assignment_incompletion_points($point_details, $point_desc, $point_type, $assignment_id){
+  global $user;
+
+  //get the term id from term name. 
+  if(function_exists('_get_user_points_term_id')){
+    //written in eb_user_points.module
+    $tid = _get_user_points_term_id('assignment_incompletion');
+
+    //Define User points parameters.
+    $params = array (
+              'uid' => $user->uid,
+              'points' => variable_get($point_details, 0),
+              'description' => $point_desc,
+              'entity_id' => $assignment_id,
+              'entity_type' => $point_type,
+              'tid' => $tid,
+              'operation' => 'insert',
+            );
+    
+    // Check userpoints module should be enabled
+    if (module_exists('userpoints')) {
+      userpoints_userpointsapi($params);
+    }
+  }  
+}
+
+/**
+ * Custom function to earn Userpoint on Assignment completion.
+ * @func => Put the User points for corresponding users who completed the Assignment
+ * @param $point_details => Variable name of which points to be earned by user.
+ * @param $point_desc => Description of which points to be earned by user.
+ * @param $point_type => Which is used as Entity type in "userpoints_txn" schema
+ * @param $assignment_id => completed assignment id.
+ *
+ * @return => null
+ */
+function assignment_completion_points($point_details, $point_desc, $point_type, $assignment_id){
+  global $user;
+
+  //get the term id from term name. 
+  if(function_exists('_get_user_points_term_id')){
+    //written in eb_user_points.module
+    $tid = _get_user_points_term_id('assignment');
+
+    //Define User points parameters.
+    $params = array (
+              'uid' => $user->uid,
+              'points' => variable_get($point_details, 0),
+              'description' => $point_desc,
+              'entity_id' => $assignment_id,
+              'entity_type' => $point_type,
+              'tid' => $tid,
+              'operation' => 'insert',
+            );
+    
+    // Check userpoints module should be enabled
+    if (module_exists('userpoints')) {
+      userpoints_userpointsapi($params);
+    }
+  }
+}
+
+/**
+ * Custom function to earn Userpoint on Reassign an Assignment.
+ * @func => Put the User points for corresponding users who's Assignment gwt
+ * @param $point_details => Variable name of which points to be earned by user.
+ * @param $point_desc => Description of which points to be earned by user.
+ * @param $point_type => Which is used as Entity type in "userpoints_txn" schema
+ * @param $assignment_id => completed assignment id.
+ *
+ * @return => null
+ */
+function unassign_content_points($point_details, $point_desc, $point_type, $assignment_id, $student_id){
+  global $user;
+
+  //get the term id from term name. 
+  if(function_exists('_get_user_points_term_id')){
+    //written in eb_user_points.module
+    $tid = _get_user_points_term_id('unassign');
+
+    //Define User points parameters.
+    $params = array (
+              'uid' => $student_id,
+              'points' => abs(variable_get($point_details, 0)),
+              'description' => $point_desc,
+              'entity_id' => $assignment_id,
+              'entity_type' => $point_type,
+              'tid' => $tid,
+              'operation' => 'insert',
+            );
+    
+    // Check userpoints module should be enabled
+    if (module_exists('userpoints')) {
+      userpoints_userpointsapi($params);
+    }
+  }  
+}
+
+/**
+ * Custom function to earn Userpoint on Recommend functionality.
+ * @func => Put the User points for corresponding users.
+ * @param $point_details => Variable name of which points to be earned by user.
+ * @param $point_desc => Description of which points to be earned by user.
+ * @param $point_type => Which is used as Entity type in "userpoints_txn" schema
+ *
+ * @return => null
+ */
+function recommend_content_points($point_details, $point_desc, $point_type){
+  global $user;
+
+  //get the term id from term name. 
+  if(function_exists('_get_user_points_term_id')){
+    //written in eb_user_points.module
+    $tid = _get_user_points_term_id('recommend');
+
+    //Define User points parameters.
+    $params = array (
+              'uid' => $user->uid,
+              'points' => variable_get($point_details , 0),
+              'description' => $point_desc,
+              'entity_id' => $user->uid,
+              'entity_type' => $point_type,
+              'tid' => $tid,
+              'operation' => 'insert',
+            );
+    
+    // Check userpoints module should be enabled
+    if (module_exists('userpoints')) {
+      userpoints_userpointsapi($params);
+    }
+  }
+}
+
+
+
+/**
+ * Custom function to get assingment completed percentage
+ * @param $uid => [optional]
+ *
+ * @return => percentage in number
+ */
+
+function get_user_assignment_com_percentage($uid = 0){
+  if ($uid == 0) {
+    global $user;
+    $uid = $user->uid;
+  } 
+  $completed_count = db_result(db_query("SELECT COUNT(*) FROM (SELECT assign.from_uid FROM {assignment} assign INNER JOIN {assignment_assign} aa ON aa.st_id  = assign.st_id INNER JOIN {curriculum_topics_assets} curriculum ON assign.link = curriculum.asset WHERE assign.to_uid = %d AND aa.uid = %d AND aa.status = %d AND aa.assign_status = %d GROUP BY assign.from_uid, assign.to_uid, assign.link) q", $uid, $uid, 2, 1));
+  $total_count = db_result(db_query("SELECT COUNT(*) FROM (SELECT assign.from_uid FROM {assignment} assign INNER JOIN {assignment_assign} aa ON aa.st_id  = assign.st_id INNER JOIN {curriculum_topics_assets} curriculum ON assign.link = curriculum.asset WHERE assign.to_uid = %d AND aa.uid = %d AND   aa.assign_status = %d GROUP BY assign.from_uid, assign.to_uid, assign.link) q", $uid, $uid, 1));
+  $per = 0;
+  if ($completed_count)  {
+    $per = round(($completed_count / $total_count) * 100);
+  } 
+  return $per; 
+}
+
+/* Test function :: just for developer check =>> Arun*/
+
+function return_user_level_test() {
+  $result = return_user_level();
+  if (count($result)) {
+    $rows[] = array($result['bridge_pts'],$result['level'],$result['label'],$result['assingment_comp_per'],$result['tot_com_pts'], $result['community_pers']);
+  }
+  return theme('table', array('Bridge points', 'level', 'label','assignment completed percentage', 'Community  points' ,'Community percentage'), $rows);
+}

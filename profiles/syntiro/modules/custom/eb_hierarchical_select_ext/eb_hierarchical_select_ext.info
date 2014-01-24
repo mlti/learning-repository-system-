@@ -1,0 +1,10 @@
+; $Id: eb_hierarchical_select_ext.info,v 1 2012/06/21 Arun Exp $
+name = Eb hierarchicalselect
+description = Eb hierarchicalselect
+dependencies[] = hierarchical_select
+dependencies[] = taxonomy
+package = Education Bridge
+core = 6.x
+; Information added by drupal.org packaging script on 2012-06-21
+version = "6.x-1.1"
+core = "6.x"

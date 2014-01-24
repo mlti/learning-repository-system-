@@ -1,0 +1,12 @@
+; $Id: lom.info,v 1.1.2.3 2010/09/18 23:06:32 bala Exp $
+name = LOM Import
+description = Import LOM Records
+package = Education Bridge
+
+; Information added by drupal.org packaging script on 2010/09/18
+version = "6.x-1.0"
+project = "lom_import"
+datestamp = "1189384803"
+
+
+core = 6.x

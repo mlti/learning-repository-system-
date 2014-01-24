@@ -1,0 +1,157 @@
+<?php
+// $Id: eb_school_group.module, 2011/12/27 2:47:PM Jaffar Exp $
+
+/**
+ * @file
+ * Enables Edubridge School Group Managment
+ */
+
+
+/**
+ * Implementation of hook_perm().
+ */
+function eb_school_group_perm() {
+  return array('addclass group');
+}
+
+/**
+ *  Implementing hook_form_alter()
+ */
+function eb_school_group_form_alter(&$form, &$form_state, $form_id) {
+  global $user;
+  switch ($form_id) {
+    case 'og_add_users':
+      // Check for add class group permission
+      if (user_access('addclass group')) {
+        $class_term = NULL;
+        // Get Taxonomy class term list
+        $query = db_query("SELECT name FROM {term_data} WHERE vid=%d", variable_get('TAXONOMY_CLASS', ''));
+        if (db_affected_rows()) {
+          while($row = db_fetch_object($query)) {
+            if ($row->name) {
+              $class_term[$row->name] = $row->name;
+            }
+          }
+        }
+        $teacher = NULL;
+        // Get list of user only on Teacher 
+        $query2 = db_query("SELECT U.uid, U.name FROM {users} U LEFT JOIN {users_roles} R ON U.uid=R.uid WHERE R.rid=3 AND U.uid !=1");
+        if (db_affected_rows()) {
+          while($row = db_fetch_object($query2)) {
+            // Check if the og_is_group_member function  exits
+            if (function_exists(og_is_group_member)) {
+              // check if the user is already a member
+              if ($row->name && !og_is_group_member($form['#parameters'][2], TRUE, $row->uid)) {
+                $teacher[$row->uid] = $row->name;
+              }
+            }
+          }
+        }
+        // Class Grade list for all users
+        if ($class_term) {
+          $form['class_list']  = array(
+          '#type' => 'select',
+          '#title' => t('Class'), 
+          '#options' => $class_term,
+          '#multiple' => TRUE, 
+          '#weight'=> -1,
+          );
+        }
+        // Teacher list
+        if ($teacher) {
+          $form['class_teacher']  = array(
+          '#type' => 'select',
+          '#title' => t("Teacher's"), 
+          '#options' => $teacher,
+          '#multiple' => TRUE, 
+          '#weight'=> -1,
+          );
+        }
+        $form['#validate'][] = 'eb_group_og_add_validate';
+        $form['#submit'][] = array_unshift($form['#submit'], 'addclass_group_submit');
+      }
+      break;
+  }
+}
+/**
+ * Form submission handler for eb_group_og_add_validate().
+ *
+ * Custom function to validate the user
+ *
+ * @see og_save_subscription().
+ *
+ */
+function eb_group_og_add_validate($form, &$form_state) {
+  if ($form_state['clicked_button']['#post']['og_names'] == NULL && $form_state['clicked_button']['#post']['class_list'] == NULL && $form_state['clicked_button']['#post']['class_teacher'] == NULL) {
+    form_set_error('', 'Please add atleast one user to associate with this group.');
+  }
+}
+/**
+ * Form submission handler for og_add_users().
+ *
+ * Custom function to save og invitations in private message
+ *
+ * @see og_save_subscription().
+ *
+ */
+function addclass_group_submit($form, &$form_state) {
+  // Get class/grade select list
+  $class_list = $form_state['clicked_button']['#post']['class_list'];
+  // Get user select list
+  $class_teacher = $form_state['clicked_button']['#post']['class_teacher'];
+  
+  $node = node_load($form_state['values']['gid']);
+  // Check if the class/grade list has value
+  if ($class_list) {
+    foreach($class_list as $key => $value) {
+      // Get Term id based on term data
+      $term_class = db_result(db_query("SELECT tid FROM {term_data} WHERE vid=%d AND name= '%s'", variable_get('TAXONOMY_CLASS', ''), $value));
+      // Get user id based on term id
+      $query = db_query("SELECT N.nid, N.uid FROM {node} N  LEFT JOIN {term_node} TN ON TN.vid = N.vid WHERE TN.tid = %d  GROUP BY nid", $term_class);
+      if (db_affected_rows()) {
+        while($row = db_fetch_object($query)) {
+          // Check if the og_is_group_member function  exits
+          if (function_exists(og_is_group_member)) {
+            // check if the user is already a member
+            if (!og_is_group_member($node, TRUE, $row->uid)) {
+              // Load the user and assign to accounts variable
+              $accounts[] = user_load($row->uid);
+            }
+          }
+        }
+      }
+      
+    }
+  }
+ // Check if the teacher list has value
+  if ($class_teacher) {
+    foreach($class_teacher as $key => $value) {
+      // Check if the og_is_group_member function  exits
+      if (function_exists(og_is_group_member)) {
+        // check if the user is already a member
+        if (!og_is_group_member($node, TRUE, $value)) {
+          // Load the user and assign to accounts variable
+          $accounts[] = user_load($value);
+        }
+      }
+    }
+  }
+  // Check if the user is avalible to add member
+  if ($accounts) {
+    foreach ($accounts as $account) {
+      // Check if the og_save_subscription function exits
+      if (function_exists(og_save_subscription)) {
+        og_save_subscription($form_state['values']['gid'], $account->uid, array('is_active' => 1));
+      }
+    }
+  }
+  
+  // Check if the name is entered in the add user textbox
+  if (!$form_state['clicked_button']['#post']['og_names']) {
+    drupal_set_message(format_plural(count($accounts), '1 user added to the group.', '@count users added to the group.'));
+    drupal_goto('og/users/' . $form_state['values']['gid']);
+  }
+  else {
+    drupal_set_message(format_plural(count($accounts), '1 user added to the group.', '@count users added to the group.'));
+  }
+}

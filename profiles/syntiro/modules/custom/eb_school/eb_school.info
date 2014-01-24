@@ -1,0 +1,5 @@
+; $Id:
+name = eb_school
+description = EduBridge School Management
+core = 6.x
+package = School

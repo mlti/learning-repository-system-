@@ -1,0 +1,10 @@
+; $Id: eb_search.info,v 1.6 2010/09/21 23:46:29 Anbarasan Exp $
+name = EB Search
+description = Apache solr search related functionalities
+package = Education Bridge
+
+core = 6.x
+dependencies[] = apachesolr
+; Information added by drupal.org packaging script on 2009-11-05
+version = "6.x"
+core = "6.x"

@@ -1,0 +1,954 @@
+<?php
+
+/**
+* Implementation of hook_menu().
+*
+*/
+function eb_group_menu() {
+  $items = array();
+  // Communities tab creation
+  $items['collaboration'] = array(
+    'title' => 'Communities',
+    'page callback' => 'community_view',
+    'access arguments' => array('create community_interest_group content'),
+    'file' => 'includes/eb_group.inc',
+  );
+  $items['collaboration/mycommunities'] = array(
+    'title' => 'Communities',
+    'type' => MENU_DEFAULT_LOCAL_TASK,
+    'weight' => -10,
+  );
+  // Recentdiscussion tab creation
+  $items['collaboration/recentdiscussions'] = array(
+    'title' => 'Recent Discussions',
+    'page callback' => 'recentdiscussion_view',
+    'access arguments' => array('create community_interest_group content'),
+    'file' => 'includes/eb_group.inc',
+    'type' => MENU_LOCAL_TASK,
+    'weight' => -9,
+  );
+  //Global study group Tab
+  $items['collaboration/globalstudygroup'] = array(
+    'type' => MENU_CALLBACK,
+    'title' => 'Global Study Group',
+    'page callback' => 'globalstudygroup_view',
+    'access arguments' => array('create community_interest_group content'),
+    'weight' => -8,
+    'file' => 'includes/eb_group.inc',
+  );
+
+  $items['communities/list'] = array(
+    'page callback' => 'communities_list',
+    'access arguments' => array('create community_interest_group content'),
+    'file' => 'includes/eb_group.inc',
+  );
+
+  // added extra tab send invitation
+  $items['og/users/%node/invite'] = array(
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('og_invite_form', 2),
+    'access callback' => 'og_menu_access_invite',
+    'access arguments' => array(2),
+    'title' => 'Send invitation',
+    'type' => MENU_LOCAL_TASK,
+    'file' => 'og.pages.inc',
+    'file path' => drupal_get_path('module', 'og'),
+    'weight' => 5,
+  );
+
+  return $items;
+}
+
+
+
+/**
+ * Implementation of hook_theme().
+ */
+function eb_group_theme() {
+  return array(
+    'view_discussion_custom' => array(
+      'template' => 'templates/view-discussion-custom',
+      'arguments' => array('results' => NULL),
+    ),
+    'view_collaboration_custom' => array(
+      'template' => 'templates/view-collaboration-custom',
+      'arguments' => array('results' => NULL),
+    ),
+    'view_community_list' => array(
+      'template' => 'templates/view-community-list',
+      'arguments' => array('results' => NULL),
+    ),
+    'community_leftside_block' => array(
+      'template' => 'templates/community-leftside-block',
+      'arguments' => array('results' => NULL),
+    ),
+   );
+}
+/**
+ * Implemantation of hook_menu_alter()
+ * For all other content types doing normal action
+ */
+function eb_group_menu_alter(&$items) {
+  // access callback will execute only module weight is 2
+  $items['node/%node/edit']['access callback'] = 'view_asset_curriculum_access';
+  $items['node/%node/edit']['access arguments'] = array(1, FALSE, FALSE, TRUE);
+  $items['node/%node/delete']['access callback'] = 'delete_asset_curriculum_access';
+  $items['node/%node/delete']['access arguments'] = array(1);
+  $items['node/%node']['access callback'] = 'node_page_change_view';
+  $items['node/%node']['access arguments'] = array(1);
+}
+
+
+/**
+ *  Implementing hook_form_alter()
+ */
+function eb_group_form_alter(&$form, &$form_state, $form_id) {
+  global $user, $base_url;
+  switch ($form_id) {
+    case 'og_add_users':
+      // Set the title
+      drupal_set_title(check_plain($form['#parameters'][2]->title));
+      // while admin adding the user
+      $form['#submit'][] = 'eb_group_og_add_users_submit';
+      if (!user_access('addclass group')) {
+        $form['#validate'][] = 'eb_group_og_add_users_validate';
+      }
+      $form['actions']['cancel']['#prefix'] = '<span class="btn-center">';
+      $form['actions']['cancel']['#suffix'] = '</span>';
+      $form['og_names']['#description'] = 'Note: Add one or more usernames in order to associate users automatically to this community. Multiple usernames should be separated by a comma.';
+    break;
+    case 'og_create_admin_confirm':
+      $form['actions']['cancel']['#prefix'] = '<span class="btn-center">';
+      $form['actions']['cancel']['#suffix'] = '</span>';
+      // while admin providing the ADMIN access to the user.
+      //$form['#submit'][] = 'eb_group_og_add_users_submit';
+    break;
+    case 'og_confirm_subscribe':
+      // User requesting admin to join the group.
+      // $form['#submit'][] = 'eb_group_og_add_users_submit';
+      $form['actions']['cancel']['#prefix'] = '<span class="btn-center">';
+      $form['actions']['cancel']['#suffix'] = '</span>';
+    break;
+    case 'og_confirm_unsubscribe':
+      // while user leave the group.
+      // $form['#submit'][] = 'eb_group_og_add_users_submit';
+      $form['actions']['cancel']['#prefix'] = '<span class="btn-center">';
+      $form['actions']['cancel']['#suffix'] = '</span>';
+
+    break;
+    case 'og_remove_admin_confirm':
+      // while admin cancelling the ADMIN access to the user.
+     // $form['#submit'][] = 'eb_group_og_add_users_submit';
+      $form['actions']['cancel']['#prefix'] = '<span class="btn-center">';
+      $form['actions']['cancel']['#suffix'] = '</span>';
+      $form['#submit'][] = 'eb_group_og_add_users_submit';
+    break;
+    case 'discussion_node_form':
+      
+      $form['body_field']['teaser_js']['#prefix']='<label for="edit-teaser-js" class="element-invisible">Teaser';
+      $form['body_field']['teaser_js']['#suffix']='</label>';
+      $form['og_nodeapi']['visible']['og_groups_visible']['#value'] = check_plain($form['og_nodeapi']['visible']['og_groups_visible']['#value']);
+      //Change Group list name to audience
+      $form['body_field']['body']['#required'] = TRUE;
+      $form['og_nodeapi']['#type'] = FALSE;
+      // Hide input format below the body field
+      $form['body_field']['format']['#prefix'] = '<div style=display:none>';
+      $form['body_field']['format']['#suffix'] = '</div>';
+      $form['body_field']['teaser_include']['#prefix'] = '<div style=display:none>';
+      $form['body_field']['teaser_include']['#suffix'] = '</div>';
+
+      //To change groups to communities
+      $form['og_nodeapi']['visible']['og_public']['#description'] = t('show this post to everyone, or only to members of the communities checked above.Post without any communities are always public.');
+      $form['og_nodeapi']['visible']['og_groups']['#description'] = t('Show this post in these communities.');
+
+      if ($form['buttons']['delete']) {
+        $form['buttons']['submit']['#prefix'] = "<div class='button-main'>";
+        $form['buttons']['delete']['#suffix'] = "</div>";
+      }
+      else {
+        $form['buttons']['submit']['#prefix'] = "<div class='button-main'>";
+        $form['buttons']['submit']['#suffix'] = "</div>";
+      }
+      // If checkboxes will display means it will change to select
+      if ($form['og_nodeapi']['visible']['og_groups']['#type'] == 'checkboxes') {
+        $form['og_nodeapi']['visible']['og_groups']['#type'] = 'select';
+      }
+      break;
+    case 'community_interest_group_node_form':
+      //echopre($form['og_selective']);
+      //$form['group_og_selective'] = array(
+      //  '#type' => 'fieldset',
+      //  '#title' => t("Membership requests"),
+      //  '#collapsible' => TRUE,
+      //  '#collapsed' => TRUE,
+      //  '#tree' => TRUE,
+      //);
+      //$og_selective =  $form['og_selective'];
+      
+      //foreach ($og_selective as $require) {
+      //  $form['group_og_selective'][$require] = array(
+      //  '#type' => 'hidden',
+      //  '#value' => 1,
+      //  '#suffix' => t('required'),
+      //  );
+      //}
+
+      $form['title']['#maxlength'] = 30;
+      $form['buttons']['submit']['#prefix'] = "<div class='button-main'>";
+      if(arg(1) == 'add') {
+        $previous_ur = $base_url .'/communities/list';
+      }
+      else {
+        $previous_ur = $base_url .'/node/' . arg(1);
+      }
+      $form['buttons']['cancel']  = array(
+        '#type' => 'markup',
+        '#value' => '<input type="button"  class="form-submit" value="Cancel" name="cancel" onclick=window.location="' . $previous_ur  .'">',
+        '#weight'=> 18,
+        '#prefix' => '<span class="btn-center">',
+        '#suffix' => '</span></div>'
+      );
+      $form['author']['name']['#default_value'] = $user->name;
+      //To change groups to communities by anitha
+      $form['og_selective']['#description'] = t('How should membership requests be handled in this community? When you select closed, users will not be able to join or leave.');
+    break;
+    case 'communityinterest_delete_form':
+      $form['description']['#prefix'] = '<div class="result"><div class="confirm-text">';
+      $form['description']['#suffix'] = '</div></div>';
+      $form['actions']['#prefix']= '<div class="button-main">';
+      $form['actions']['#suffix'] = '</div>';
+      $form['actions']['cancel']['#prefix'] = '<span class="btn-center">';
+      $form['actions']['cancel']['#suffix'] = '</span>';
+      break;
+    case 'comment_form':
+      $form['preview'] = NULL;
+      $form['submit']['#prefix'] = '<div class="comment-button">';
+      $form['submit']['#suffix'] = '</div>';
+      break;
+    case 'og_confirm_subscribe':
+      // For cancel button redirect to node page or pervious page
+      if (is_numeric(arg(1))) {
+        $form['#redirect'] = array('node/' . arg(1));
+        $form['actions']['cancel']['#value'] = l('Cancel', 'node/' . arg(1));
+      }
+      else {
+        $form['#redirect'] = array('node/' . arg(2));
+        $form['actions']['cancel']['#value'] = l('Cancel', $_SERVER['HTTP_REFERER']);
+      }
+      break;
+    case 'og_invite_form':
+      // For user select in popup
+      drupal_add_js(array('ed_search_userselect' => array()), 'setting');
+      drupal_set_title(check_plain($form['#parameters'][2]->title));
+      // Commented due to Log entry
+      //drupal_add_js(drupal_get_path('module', 'eb_search') .'/json_parse.js');
+      //drupal_add_js(drupal_get_path('module', 'eb_search') .'/eb_search_popup.js');
+      //drupal_add_js(drupal_get_path('module', 'eb_search') .'/eb_search.js');
+
+      // Search image icon
+      //commented for accessibility
+     // $form['mails']['#prefix'] =  '<div class=search-img>' . l(theme_image(drupal_get_path('theme', 'educationhub') . "/images/header-search-button.jpg"), 'popupsearch/results', array('attributes' => array('class' => 'popups', 'on-popups-options' => '{ width: "350px"}'),'html' => TRUE)) . '</div>';
+      $form['op']['#prefix'] = '<div class="button-main">';
+      $form['op']['#suffix'] = '</div>';
+      $form['#redirect']= 'node/'.arg(2);
+      $form['#validate'][] = 'invite_pvt_message_validate';
+      $form['#submit'][] = 'invite_pvt_message_submit';
+      break;
+    case 'multichoice_node_form':
+      $form['path']['pathauto_perform_alias']['#default_value'] = 0;
+      break;
+    case 'assignment_node_form':
+      $form['og_selective']['#default_value'] = 0;
+      $form['og_selective']['#prefix'] = '<div style=display:none>';
+      $form['og_selective']['#suffix'] = '</div>';
+      break;
+    case 'og_add_users':
+      // Set title for Add User page in Manage Membership
+      drupal_set_title(ucwords(node_title(arg(2))));
+      break;
+  }
+}
+
+function invite_pvt_message_validate($form, &$form_state) {
+  if (!$form_state['values']['mails']) {
+    form_set_error('mails', t('Please Enter Username or E-Mail Id'));
+  }
+
+}
+//function eb_group_unsubscribe_redirect($form, &$form_state) {
+//
+//  $form['#redirect'] = 'communities/list';
+//
+//  return $form;
+//
+//}
+
+function eb_group_og_add_users_validate($form, &$form_state) {
+  if ($form_state['clicked_button']['#post']['og_names'] == NULL && !user_access('addclass group')) {
+    form_set_error('og_names', 'Please Enter User Name.');
+  }
+}
+/**
+ * Overriding og_groups module function og_add_users_submit to send private message.
+ *
+ * @@ This function is used to send private message for the users who are subscrbing, unsubscrbing,
+ * requesting, adding and confirming request.
+ *
+ */
+function eb_group_og_add_users_submit($form, &$form_state) {
+  global $user, $base_url;
+  switch($form['#post']['form_id']) {
+    case 'og_add_users':
+      $user_names = array();
+      $user_names = explode(",", $form['#post']['og_names']);
+      foreach($user_names as $key => $value) {
+      //  $result = db_result(db_query("SELECT uid FROM users WHERE name = '%s' ", $value));
+        $temp_user = user_load(array('name' => trim($value)));
+        // Storing the users name in the $rec[] to send private message.
+        $rec[$temp_user->uid] = $temp_user;
+        // Getting the community name.
+        $community_name = $form['#parameters']['2']->title;
+        // Getting the url of the community.
+        $url = $form['#parameters']['2']->path;
+        // Subject which will be available in private message.
+        $subject = "You have been added as a Member of the Community! ". $community_name;
+        // Body which will be available in private message.
+        $body = "You are now ready to start collaborating! Follow the link below: " .  l($community_name, $url, array('html' => TRUE));
+        $body .= " <br> Regards,<br> EduBridge Admin";
+        if (module_exists('heartbeat')) {
+          $message_id = 'heartbeat_add_member_user';
+          $variables = array(
+            '@group_name' => l($community_name, $url),
+          );
+          if($user->uid != $temp_user->uid && function_exists("heartbeat_api_log")) {
+            heartbeat_api_log($message_id, $temp_user->uid, $user->uid, $gid, 0, $variables);
+          }
+        }
+      }
+    break;
+    case 'og_remove_admin_confirm':
+      // if admin permission removed from og node author
+      $node = node_load($form_state['values']['gid']);
+      $to_user = $form_state['values']['account'];
+      // Storing the users name in the $rec[] to send private message.
+      $rec[$to_user->uid] = $to_user;
+      // Getting the community name.
+      $community_name = $node->title;
+      // Subject which will be available in private message.
+      $subject = "You have been removed admin position from the Community! ". $community_name;
+      // Body which will be available in private message.
+      $body = $to_user->name. " have been removed admin position from the Community  " . $community_name;
+      $body .= " <br> Regards,<br> EduBridge Admin";
+       // Will delete the unassigned user in hearbeat_activity table
+      if (module_exists('heartbeat')) {
+        $query = heartbeat_ids($gid, 'heartbeat_create_remove_admin', $uid);
+        if (db_affected_rows()) {
+          while($row = db_fetch_object($query)) {
+            _heartbeat_activity_delete($row->uaid);
+          }
+        }
+      }
+    break;
+  }
+  //construct email - which located in eb_others.module
+  if(is_array($rec) && (count($rec) > 0) && function_exists("privatemsg_mail_send")){
+    privatemsg_mail_send($rec, $user, t($subject), t($body));
+  }
+}
+/**
+ * Form submission handler for invite_pvt_message().
+ *
+ * Custom function to save og invitations in private message
+ *
+ */
+function invite_pvt_message_submit($form, &$form_state) {
+
+  global $user;
+  $gNode = og_get_group_context();
+  $variables = array(
+    '@group' => $gNode->title,
+    '@description' => $gNode->og_description,
+    '@site' => variable_get('site_name', 'drupal'),
+    '@group_url' => url("og/subscribe/$gNode->nid", array('absolute' => TRUE)),
+    '@body' => $form_state['values']['pmessage'],
+  );
+
+  $to_users = explode(',', $form_state['values']['mails']);
+  foreach ($to_users as $key => $val) {
+    $temp_user = user_load(array('name' => trim($val)));
+    $rec[$temp_user->uid] = $temp_user;
+  }
+
+  if(is_array($rec) && (count($rec) > 0)){
+    privatemsg_mail_send($rec, $user, t(variable_get('og_invite_user_subject', ''), $variables), t(variable_get('og_invite_user_body', ''), $variables));
+  }
+}
+
+
+/**
+ * Implementation of hook_preprocess_page().
+ *
+ */
+function eb_group_preprocess_page(&$vars) {
+  global $user;
+  if(strtolower(arg(0)) == 'og' ) {
+    $og_node_title = $vars['title'];
+    if(strtolower(arg(1)) == 'unsubscribe') {
+      // to change the text from group to community in leave community.
+      $vars['title'] = 'Leave Community';
+      $vars['og_title'] = str_replace("group", "community", $og_node_title);
+    } else if(strtolower(arg(1)) == 'subscribe') {
+      // to change the text from group to community in join community.
+      $vars['title'] = 'Join Community';
+      $vars['og_title'] = str_replace("group", "community", $og_node_title);
+    }
+    // to change the text from group to community in members add page.
+    if(arg(1) == 'users' && is_numeric(arg(2)) && arg(3) == 'add_user'){
+      $vars['messages'] = str_replace("group", "community", $vars['messages']);
+    }
+  }
+
+  // Community interest group edit button
+  if (is_numeric(arg(1)) && (arg(0) == 'node' || arg(0) == "review_listing" )) {
+    $node = node_load(arg(1));
+  }
+  else if(arg(0) == 'og' && is_numeric(arg(2))) {
+    $node = node_load(arg(2));
+  }
+
+  // Check if og module exits
+  if (module_exists('og') && !empty($node)) {
+
+    // Check edit button link for community interest group and discussion page
+    if (arg(2) != 'edit' && arg(2) != 'delete' && arg(1) != 'unsubscribe' && arg(1) != 'invite' && arg(1) != 'create_admin' && og_is_group_type($node->type) && arg(1) != 'delete_admin') {
+      // if Community course group author means edit button will display
+      if (node_access('update', $node) || user_access('administrator')) {
+        $vars['title_edit'] = l(theme_image(drupal_get_path('theme', 'edubridge_fluid') . "/images/Edit-icon.png"), 'node/' . $node->nid . '/edit', array('attributes' => array('title' => 'Edit Community'),  'html' => TRUE));;
+      }
+    }
+    if (og_is_group_type($node->type)) {
+      // For discussion title div structure has been changed...
+      $vars['title_tags'] = TRUE;
+      //$vars['title_edit'] = FALSE;
+      // check in page.tpl.php if it is 1.
+      $vars['group_node'] = TRUE;
+      //$_SESSION['communityinterest_id'] = $node-nid;
+      if (arg(2) == 'edit') {
+        $vars['edit_header_name'] =  t('Edit Community');
+        $vars['edit_header'] = l('Back', 'node/'. arg(1), array('attributes' => array('class' => ''), 'html' => TRUE));
+      }
+      // Invite page
+      if (arg(0) == 'og' && arg(3) != 'faces') {
+        // check in page.tpl.php if it is False.
+        // For Manage membership page Top Tab..
+        $vars['group_node'] = FALSE;
+        $vars['edit_header'] =  l('Back', 'node/'. $node->nid, array('attributes' => array('class' => ''), 'html' => TRUE));
+      }
+      // Check community interest group node view page
+      if (arg(2) == NULL) {
+
+        // Commented due to Log entry
+        //drupal_add_js(drupal_get_path('module', 'asset') . '/asset-ddmenu.js');
+
+        $vars['scripts']  = drupal_get_js();
+        $vars['user_type'] = $user->roles[3];
+        $vars['join_group'] = ' ';
+        // if author means it show create and invite
+        if (og_is_group_admin($node)) {
+          // Changed the button as create discussion by mouse hover function on 08.sep.2011
+          $vars['create_link'] = l('Create Discussion' , 'node/add/discussion', array('attributes' => array('class' => 'commnity_associate') , 'query' => 'gids[]=' . $node->nid, 'html' => true));
+        }
+        elseif (og_is_group_member($node->nid, FALSE, $user->uid)) {
+          // if user is group member
+          $vars['create_link'] = l('Create Discussion' , 'node/add/discussion', array('attributes' => array('class' => 'commnity_associate'), 'query' => 'gids[]=' . $node->nid, 'html' => true));
+        }
+        else if ($node->og_selective == OG_OPEN) {
+          // if new member means it shows join button
+          $vars['join_group'] = l('Join Community', 'og/subscribe/' . arg(1), array('attributes' => array('class' => ''), 'html' => true, 'query' => 'destination=node/' . arg(1)));
+        }
+        else if ($node->og_selective == OG_MODERATED){
+          // if user want to request membership
+          $vars['join_group'] = l('Request membership', 'og/subscribe/' . arg(1), array('attributes' => array('class' => ''), 'html' => true, 'query' => 'destination=node/' . $node->nid));
+        }
+      }
+    }
+    // For discussion view page
+    if ($node->type == 'discussion') {
+      $vars['title_tags'] = TRUE;
+      $vars['group_node'] = TRUE;
+      // Get Previous URL
+      $previous_path = $_SERVER['HTTP_REFERER'];
+      $path = explode("/",  $previous_path);
+      // Get Node id
+      $search_value = $path[4];
+      // Check if it is direct path or url alias
+      if ($path[3] != 'node') {
+        // Get exact node id from the url alias
+        $aliasPrevious_path = db_result(db_query("SELECT src FROM {url_alias} WHERE dst = '%s'", $path[3] . '/' . $path[4]));
+        $aliasPrevious_path_value = explode("/",  $aliasPrevious_path);
+        $search_value = $aliasPrevious_path_value[1];
+      }
+      if ($user->uid == $node->uid || user_access('administrator')) {
+        $vars['title_edit'] = l(theme_image(drupal_get_path('theme', 'edubridge_fluid') . "/images/Edit-icon.png"), 'node/' . $node->nid . '/edit', array( 'attributes' => array('title' => 'Edit Discussion'),  'html' => TRUE));;
+
+        //$vars['title_tags'] = '<div class="custom-title ' . $title_class . '"><div class="clearfix"><h1>' . $node->title .  '</h1>' . $edit_image;
+        //$vars['title_tags'] .= '</div></div>';
+      }
+      // Search node id from group node. If true means get node id otherwise get first group node id
+      $exact_path = array_search($search_value, $node->og_groups)? array_search($search_value, $node->og_groups): array_shift($node->og_groups);
+      $vars['edit_header'] =  l('Back', 'node/' . $exact_path, array('attributes' => array('class' => ''), 'html' => TRUE));
+    }
+  }
+  // For Add Community interest group page
+  if (arg(1) == 'add' && arg(2) == 'community-interest-group') {
+    $vars['edit_header'] = l('Back', 'collaboration/mycommunities', array('attributes' => array('class' => ''), 'html' => TRUE));
+  }
+  //Create community link on collaboration/mycommunities page
+  if (arg(0) == 'collaboration' && arg(1) == 'mycommunities' && !user_access('access new layout')) {
+    $vars['create_content'] = l('Create Community', 'node/add/community-interest-group');
+  }
+  // For Create discussion it should redirect to back page
+  if ((arg(1) == 'add' and arg(2) == 'discussion')) {
+    $vars['edit_header'] = l('Back', 'node/' . $_GET['gids'][0], array('html' => true));
+  }
+}
+
+/**
+ * Implementation of hook_preprocess_node().
+ *
+ */
+function eb_group_preprocess_node(&$vars) {
+  global $base_url, $user;
+  if ($vars['node']->type == 'discussion') {
+    $vars['created_by'] = "<span class='font-bold'>Created By: ". $vars['name'] .'</span>, on '. date('d M Y',$vars['created']);
+    $vars['back'] = l('Back', 'node/'. arg(1), array('attributes' => array('class' => ''), 'html' => true));
+    $vars['submitedDate'] = date('D, Y-m-d - H:i',$vars['created']);
+    if ($vars['node']->uid == $user->uid) {
+      $vars['node_edit_link'] = $base_url . '/node/' . $vars['node']->nid . '/edit';
+      if ($_GET['status'] != 'ajax') {
+        $vars['tooltip_content'] = l('','#', array("attributes" => array("class" => "")));
+      }
+    }
+
+
+  }
+  if ($vars['node']->type == 'community_interest_group') {
+    if(og_is_group_admin($vars['node'])) {
+      $vars['node_edit_link'] = $base_url . '/node/' . $vars['node']->nid . '/edit';
+    }
+  }
+  //Create community link on collaboration/mycommunities page
+  if (arg(0) == 'collaboration' && arg(1) == 'mycommunities' && !user_access('access new layout') && $vars['node']->type == 'community_interest_group') {
+    $vars['create_content'] = l('Create Community', 'node/add/community-interest-group');
+  }
+
+}
+/**
+ * Implementation of hook_nodeapi().
+ *
+ */
+function eb_group_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
+  global $user;
+  switch ($op) {
+    case 'insert':
+      switch ($node->type) {
+        case 'discussion':
+          $grp_value = '';
+          if(count($node->og_groups) > 0){
+            $grp_value = implode(",", $node->og_groups);
+          }
+          $nd_name = array();
+          // Check if discussion have group
+          if ($node->og_groups) {
+            foreach($node->og_groups AS $nd_key => $nd_value){
+              $node_association = node_load($nd_value);
+              $nd_name[$nd_key] = $node_association->title;
+              // check if user is an admin for the associated group node
+            }
+          }
+          if (module_exists("heartbeat")) {
+            $uid_Group = db_query("SELECT nid,uid FROM {og_uid} WHERE nid IN ($grp_value)");
+            if (db_affected_rows()) {
+              while ($result_Uid = db_fetch_object($uid_Group)) {
+                $temp_user = user_load(array('uid' => $result_Uid->uid));
+                $message_id = 'heartbeat_add_discussion';
+                $variables = array(
+                  '@discussion_name' => l($node->title, 'node/' . $node->nid),
+                  '@group_name' => $nd_name[$result_Uid->nid],
+                  '@discussion_starter_name' => eb_others_popup_link($user->name, 'user/' . $user->uid),
+                );
+                if($user->uid != $temp_user->uid) {
+                  heartbeat_api_log($message_id, $temp_user->uid, $user->uid, $node->nid, 0, $variables);
+                }
+              }
+            }
+          }
+          break;
+      }
+    break;
+    case 'view':
+      global $user;
+      switch ($node->type) {
+        case 'community_interest_group':
+          // for input format should be described here
+          $node->og_description = check_markup($node->og_description, variable_set('filter_default_format', 1), FALSE);
+          break;
+        case "discussion":
+          /*Check whether the discussion node is already visited by this currently logged in user*/
+          if(!db_result(db_query("SELECT dis_id FROM {eb_group_discussion_statistics} WHERE uid = %d AND dis_nid = %d", $user->uid, $node->nid))){
+            db_query("INSERT INTO {eb_group_discussion_statistics} SET uid = %d, dis_nid = %d, access_time = %d", $user->uid, $node->nid, time());
+          }
+          break;
+      }
+    break;
+    
+    case 'delete':
+      switch ($node->type) {
+        case 'community_interest_group':
+          //fetching records from assignment table to delete records from assingmnet_assign table.
+          $result = db_query("SELECT st_id, to_uid FROM {assignment} WHERE  to_gid = %d", $node->nid);
+          while($res = db_fetch_array($result)) {
+            //deleting record form assingment_assign table.
+            db_query("DELETE FROM {assignment_assign} WHERE st_id = %d AND uid = %d", $res['st_id'], $res['to_uid']);
+            $temp_user = user_load(array('uid' => $res['to_uid']));
+            // Storing the users name in the $rec[] to send private message.
+            $rec[$temp_user->uid] = $temp_user;
+          }
+          // to delete records from assignment table
+          db_query("DELETE FROM {assignment} WHERE to_gid = %d", $node->nid);
+          // Subject which will be available in private message.
+          $subject = "Your assignment have been removed from myassignments";
+          // Body which will be available in private message.
+          $body = "Your assignment have been removed from myassignments";
+          $body .= " <br> Regards, <br> ".$user->title;
+          //construct email - which located in eb_others.module
+          if(is_array($rec) && (count($rec) > 0)){
+            privatemsg_mail_send($rec, $user, t($subject), t($body));
+          }
+          // Check if heart beat module exits
+          if (module_exists('heartbeat')) {
+            $query = heartbeat_ids($node->nid, 'heartbeat_add_discussion');
+            if (db_affected_rows()) {
+              while($row = db_fetch_object($query)) {
+                _heartbeat_activity_delete($row->uaid);
+              }
+            }
+          }
+        break;
+      }
+      break;
+  }
+}
+/**
+ * Implementation of hook_comment().
+ *
+ */
+function eb_group_comment(&$a1, $op) {
+  switch($op) {
+    case 'insert':
+      global $user;
+      if($a1['nid']) {
+        $nd_obj = node_load($a1['nid']);
+        if($nd_obj->type == 'discussion'){
+          $message_id = '';
+          if(!comment_num_all($a1['nid'])){
+            $message_id = 'heartbeat_addnew_discussion_comment';
+          }
+          else {
+            $message_id = 'hearbeat_add_subsequent_discussion_comment';
+          }
+          // Check if og_groups is avaliable for this discusion
+          if (module_exists("heartbeat") && $nd_obj->og_groups) {
+            foreach ($nd_obj->og_groups as $value) {
+              $uid_Group = db_query("SELECT nid,uid FROM {og_uid} WHERE nid = %d", $value);
+              $nd_name = $nd_obj->title;
+              while ($result_Uid = db_fetch_object($uid_Group)) {
+                $temp_user = user_load(array('uid' => $result_Uid->uid));
+                $variables = array(
+                  '@member' => eb_others_popup_link($user->name, 'user/' . $user->uid),
+                  '@topic_title' => l($nd_name, 'node/' . $nd_obj->nid),
+                );
+                // Check commented user is current user
+                if($user->uid != $temp_user->uid) {
+                  heartbeat_api_log($message_id, $temp_user->uid, $user->uid, $nd_obj->nid, 0, $variables);
+                }
+              }
+            }
+          }
+        }
+      }
+      break;
+  }
+}
+/**
+ * Implementation of hook_og().
+ *
+ */
+function eb_group_og($op, $gid, $uid, $args) {
+  global $user;
+  switch ($op) {
+    case 'user insert':
+      //clear the cache
+      if (module_exists("cache_eb")) {
+        cache_clear_all("community_listing:uid:" . $uid . ":", "cache_eb", TRUE);
+        cache_clear_all("mobile_community_list:uid:" . $uid . ":", "cache_eb", TRUE);
+      }
+      break;
+    case 'user delete':
+      $node = node_load($gid);
+      //fetching records from assignment table to delete records from assingmnet_assign table.
+      $result = db_query("SELECT st_id, to_uid FROM {assignment} WHERE  to_gid = %d AND to_uid = %d", $gid, $uid);
+      if (db_affected_rows()) {
+        while($res = db_fetch_array($result)) {
+          //deleting record form assingment_assign table.
+          db_query("DELETE FROM {assignment_assign} WHERE st_id = %d AND uid = %d", $res['st_id'], $res['to_uid']);
+          db_query("DELETE FROM {assignment} WHERE to_gid = %d AND to_uid = %d AND st_id =%d", 0, $res['to_uid'], $res['st_id']);
+          $temp_user = user_load(array('uid' => $res['to_uid']));
+          // Storing the users name in the $rec[] to send private message.
+          $rec[$temp_user->uid] = $temp_user;
+        }
+
+        // to delete records from assignment table
+        db_query("DELETE FROM {assignment} WHERE  to_gid = %d AND to_uid = %d", $gid, $uid);
+        // Subject which will be available in private message.
+        $subject = "Your assignment have been removed from myassignments";
+        // Body which will be available in private message.
+        $body = "Your assignment have been removed from myassignments";
+        $body .= " <br> Regards, <br> ".$user->title;
+        //construct email - which located in eb_others.module
+        if(is_array($rec) && (count($rec) > 0)){
+          privatemsg_mail_send($rec, $user, t($subject), t($body));
+        }
+      }
+      $temp_user = user_load(array('uid' => $uid));
+      // Storing the users name in the $rec[] to send private message.
+      $rec[$temp_user->uid] = $temp_user;
+      //Getting the community name.
+      $community_name = $node->title;
+      //Getting the url of the community.
+      $url = $node->path;
+      $is_active = db_result(db_query("SELECT is_active FROM {og_uid} WHERE nid=%d AND uid =%d", $gid, $uid));
+      if ($is_active == 0) {
+        $subject = "Your Membership Request has been denied! ". $community_name;
+        // Body which will be available in private message.
+        $body = $temp_user->name. " have been denied your membership request " . $community_name;
+        $body .= " <br> Regards,<br> EduBridge Admin ";
+        // Getting the url of the community.
+        $url = $node->path;
+        // For heart beat activity
+        if (module_exists('heartbeat')) {
+          $message_id = 'heartbeat_membership_deny';
+          $variables = array(
+            '@community_name' => l($community_name, $url,  array('html' => TRUE)),
+            '@author_name' => create_eduauthor($user->uid),
+          );
+          if($user->uid != $uid) {
+            heartbeat_api_log($message_id, $temp_user->uid, $user->uid, $gid, 0, $variables);
+          }
+        }
+      }
+      else {
+        if($temp_user->uid == $user->uid) {
+          // Subject which will be available in private message.
+          $subject = "You have been unsubscribe from the Community! ". $community_name;
+          // Body which will be available in private message.
+          $body = $temp_user->name. " have been unsubscribed from the Community  " . $community_name;
+          $body .= " <br> Regards,<br> EduBridge Admin ";
+        }
+        else {
+          // Subject which will be available in private message.
+          $subject = $user->name. " have been left from the Community! ". $community_name;
+          // Body which will be available in private message.
+          $body = $user->name. " have been left from the Community! ". $community_name;
+          $body .= "<br> Regards,<br> ".$user->name;
+        }
+      }
+      // Will delete the unassigned user in hearbeat_activity table
+      heartbeat_delete($gid, 'heartbeat_add_member_user', $uid);
+      heartbeat_delete($gid, 'heartbeat_add_member', $uid);
+      heartbeat_delete($gid, 'heartbeat_create_remove_admin', $uid);
+      heartbeat_delete($gid, 'heatbeat_membership_approval', $uid);
+      if(is_array($rec) && (count($rec) > 0) && function_exists("privatemsg_mail_send")){
+        privatemsg_mail_send($rec, $user, t($subject), t($body));
+      }
+      //clear the cache
+      if (module_exists("cache_eb")) {
+        cache_clear_all("community_listing:uid:" . $uid . ":", "cache_eb", TRUE);
+        cache_clear_all("mobile_community_list:uid:" . $uid . ":", "cache_eb", TRUE);
+      }
+    break;
+    case 'user approve':
+      $node = node_load($gid);
+      $to_user = user_load(array('uid' => $uid));
+      // Storing the users name in the $rec[] to send private message.
+      $rec[$to_user->uid] = $to_user;
+      // Getting the community name.
+      $community_name = $node->title;
+      // Getting the url of the community.
+      $url = $node->path;
+      // Subject which will be available in private message.
+      $subject = "You have been added as a Member of the Community! ". $community_name;
+      // Body which will be available in private message.
+      $body = "You are now ready to start collaborating! Follow the link below: " . l($url, $url, array('html' => TRUE));
+      $body .= " <br> Regards,<br> EduBridge Admin";
+
+      // For heart beat activity
+      if (module_exists('heartbeat')) {
+        $message_id = 'heatbeat_membership_approval';
+        $variables = array(
+          '@community_name' => l($community_name, $url,  array('html' => TRUE)),
+          '@author_name' => function_exists("create_eduauthor") ? create_eduauthor($user->uid) : NULL,
+        );
+        if($user->uid != $to_user->uid) {
+          heartbeat_api_log($message_id, $to_user->uid, $user->uid, $gid, 0, $variables);
+        }
+      }
+      if(is_array($rec) && (count($rec) > 0) && function_exists("privatemsg_mail_send")){
+        privatemsg_mail_send($rec, $user, t($subject), t($body));
+      }
+      break;
+    case 'admin new':
+      if ($user->uid != $uid) {
+        $node = node_load($gid);
+        $to_user = user_load(array('uid' => $uid));
+        // Storing the users name in the $rec[] to send private message.
+        $rec[$to_user->uid] = $to_user;
+        // Getting the community name.
+        $community_name = $node->title;
+        // Getting the url of the community.
+        $url = $node->path;
+        // Subject which will be available in private message.
+        $subject = "You have become an Admin for the Community! ". $community_name;
+        // Body which will be available in private message.
+        $body = $to_user->name. " made you as an administrator of the Community  " . $community_name;
+        $body .= " <br> To see the Community, follow the link below: " . l($url, $url, array('html' => TRUE));
+        $body .= " <br> Regards,<br> EduBridge Admin";
+        // For heart beat activity
+        if (module_exists('heartbeat')) {
+          $message_id = 'heartbeat_create_remove_admin';
+          $variables = array(
+            '@community_name' => l($community_name, $url,  array('html' => TRUE)),
+          );
+          if($user->uid != $to_user->uid) {
+            heartbeat_api_log($message_id, $to_user->uid, $user->uid, $gid, 0, $variables);
+          }
+        }
+        if(is_array($rec) && (count($rec) > 0) && function_exists("privatemsg_mail_send")){
+          privatemsg_mail_send($rec, $user, t($subject), t($body));
+        }
+      }
+      break;
+  }
+}
+
+
+/**
+ * Implementation of hook_user
+ */
+function eb_group_user($op, &$edit, &$account, $category = NULL) {
+  global $user;
+  switch ($op) {
+    case 'view':
+      if (isset($_REQUEST['destination'])) {
+        unset($account->content['userpoints']);
+      }
+      $account->og_groups = '';
+    break;
+  }
+}
+
+/**
+ * Override or insert PHPTemplate variables into the templates.
+ */
+function eb_group_preprocess_privatemsg_view(&$vars) {
+ $vars['message_timestamp'] = format_date($vars['message']['timestamp'], 'large');
+}
+
+
+function eb_group_block($op = 'list', $delta = 0, $edit = array()) {
+  switch ($op) {
+    case 'list':
+      $blocks[0] = array(
+        'info' => t('Community Action Block'),
+      );
+      return $blocks;
+    case 'view':
+      switch ($delta) {
+        case 0:
+          $node = node_load(arg(1));
+          // to find comments corrsponding node id and not to display the bridge block in comment section for discussion page.
+          if(arg(0) == 'comment' && arg(1) == 'edit' && is_numeric(arg(2)) ) {
+            $nid = db_result(db_query("SELECT nid FROM comments WHERE cid=%d", arg(2)));
+            $comment_node = node_load($nid);
+          }
+          if($node->type == 'community_interest_group' || $node->type == 'discussion' || (arg(0) == 'node' && arg(1) == 'add' && (arg(2) == 'discussion') ) || (arg(0) == 'og' && arg(1) == 'users' || $comment_node->type == 'discussion')) {
+            $block['subject'] = "";
+            $block['content'] = community_leftside_block();
+          }
+          break;
+      }
+      return $block;
+    }
+}
+
+/**
+ *  It contains community left side menu
+ *
+ * @see theme_community_left_side_block().
+ * @todo Bring MARS links form MARS module... Private Messages Dynamic
+ */
+function community_leftside_block() {
+  global $base_url, $user;
+
+  $results = array();
+
+  // to get the argument for community
+  if(is_numeric(arg(1))) {
+    $node = node_load(arg(1));
+    // to check if it is community or discussion to change the node id accordingly
+    if($node->type != 'discussion') {
+      $arg = arg(1);
+    } else if($node->type == 'discussion') {
+      $arg = key($node->og_groups);
+    }
+  } else if(is_numeric(arg(2))) {
+    if(arg(0) == 'comment' && arg(1) == 'edit' && is_numeric(arg(2)) ) {
+      $nid = db_result(db_query("SELECT nid FROM comments WHERE cid=%d", arg(2)));
+      $arg = key(node_load($nid)->og_groups);
+    } else {
+      $arg = arg(2);
+    }
+  } else {
+    $arg = $_GET['gids'][0];
+  }
+
+  //check og module exists
+  $node = node_load($arg);
+  if (module_exists('og')){
+    // if author or memebers means it show create and invite
+    if (og_is_group_admin($node) || og_is_group_member($arg, FALSE, $user->uid)) {
+      // Changed the button as create discussion by mouse hover function on 23.feb.2012
+      // if user is group member
+      $results['menu_list'][0] = l('Create Discussion' , 'node/add/discussion', array('attributes' => array('class' => 'action-block-arrow'), 'query' => 'gids[]=' . $node->nid, 'html' => true));
+    }
+
+    // Create community Link
+    $results['menu_list'][2] = l('Create Community', 'node/add/community-interest-group', array('attributes' => array('class' => 'action-block-arrow')));
+
+    if(og_is_group_admin($node)) {
+
+      // nothing will display if user is admin
+
+    } else if(og_is_group_member($node)) {
+       $results['menu_list'][3] = l('Leave Communitiy', 'og/unsubscribe/'.$arg.'/'.$user->uid, array('attributes' => array('class' => 'action-block-arrow'),'html'=> TRUE, 'query' => 'destination=og/users/'.$arg));
+    } else if ($node->og_selective == OG_OPEN) {
+      // if new member means it shows join button
+      $results['menu_list'][3] = l('Join Community', 'og/subscribe/' . $arg, array('attributes' => array('class' => 'action-block-arrow'), 'html' => true, 'query' => 'destination=node/' . $arg));
+    } else if ($node->og_selective == OG_MODERATED){
+      // if user want to request membership
+      $results['menu_list'][3] = l('Request membership', 'og/subscribe/' . $arg, array('attributes' => array('class' => 'action-block-arrow'), 'html' => true, 'query' => 'destination=node/' . $node->nid));
+    }
+  }
+
+  return theme('community_leftside_block', $results);
+}

@@ -1,0 +1,73 @@
+<?php
+// $Id: eb_others.install, 2011/10/18 4:23:PM Jaffar Exp $
+
+/**
+ * @file
+ *   Install and related hooks for ebubridge.
+ */
+
+
+/**
+ * Implementation of hook_uninstall().
+ */
+function eb_others_uninstall() {
+  variable_del('edubridge_participate');
+  variable_del('edubridge_create_group');
+  variable_del('edubridge_discussion_own_group');
+  variable_del('edubridge_discussion_other_group');
+  variable_del('edubridge_complete_assignment');
+  variable_del('edubridge_complete_quiz');
+  variable_del('edubridge_comment_own_discussion');
+  variable_del('edubridge_comment_other_discussion');
+  variable_del('edubridge_login_daily_once');
+}
+
+
+//Update new field called type
+function eb_others_update_6000() {
+  $taxonomy['name'] = 'Class/Grade';
+  $taxonomy['description'] = 'Grade and Class should be added';
+  $taxonomy['nodes']['profile'] = 'profile';
+  $taxonomy['tags'] = 1;
+  $taxonomy['multiple'] = 0;
+  $taxonomy['required'] = 1;
+  $taxonomy['weight'] = 0;
+  $taxonomy['hierarchy'] = 0;
+  $taxonomy['relations'] = 1;
+  
+  switch (taxonomy_save_vocabulary($taxonomy)) {
+    case 1:
+      variable_set('TAXONOMY_CLASS', $taxonomy['vid']);
+      drupal_set_message(t('Created new vocabulary %name.', array('%name' => $taxonomy['name'])));
+      watchdog('taxonomy', 'Created new vocabulary %name.', array('%name' => $taxonomy['name']), WATCHDOG_NOTICE, l(t('edit'), 'admin/content/taxonomy/edit/vocabulary/'.$taxonomy['vid']));
+      break;
+    case 2:
+      variable_set('TAXONOMY_CLASS', $taxonomy['vid']);
+      drupal_set_message(t('Updated vocabulary %name.', array('%name' => $taxonomy['name'])));
+      watchdog('taxonomy', 'Updated vocabulary %name.', array('%name' => $taxonomy['name']), WATCHDOG_NOTICE, l(t('edit'), 'admin/content/taxonomy/edit/vocabulary/'. $taxonomy['vid']));
+      break;
+  }
+}
+
+/**
+ * Enable eb_school Module
+ * eb_others Module Updates
+ */
+function eb_others_update_6001() {
+  $new_modules[] = 'eb_school';
+  $new_modules[] = 'eb_school_group';
+  drupal_install_modules($new_modules);
+  drupal_rebuild_theme_registry();
+  node_types_rebuild();
+  menu_rebuild();
+  cache_clear_all('schema', 'cache');
+  drupal_clear_css_cache();
+  drupal_clear_js_cache();
+  // Notify locale module about module changes, so translations can be
+  // imported. This might start a batch, and only return to the redirect
+  // path after that.
+  module_invoke('locale', 'system_update', $new_modules);
+
+  // Synchronize to catch any actions that were added or removed.
+  actions_synchronize();
+}

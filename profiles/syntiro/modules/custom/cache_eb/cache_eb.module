@@ -1,0 +1,285 @@
+<?php
+/**
+ * @file
+ *
+ *
+ */
+
+/**
+* Implementation of  hook_flush_caches()
+*
+*/
+function cache_eb_flush_caches() {
+  return array('cache_eb');
+}
+
+/**
+ * Implementation of hook_nodeapi().
+ */
+function cache_eb_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
+  global $user;
+  switch ($op) {
+    case 'insert':
+      switch($node->type) {
+        case 'institute':
+          cache_set("ins_" . $node->nid, $node, "cache_eb");
+          break;
+        case 'asset':
+           // clear the cache
+          if (function_exists("clear_listing_cache")) {
+            clear_listing_cache($node);
+          }
+          break;
+        case 'curriculum':
+          // clear the cache
+          if (function_exists("clear_listing_cache")) {
+            clear_listing_cache($node, "playlist_listing", "playlist_basket", "playlist_mobile");
+          }
+          if (function_exists("clear_listing_cache_authors")) {
+            $clear_list = array('playlist_listing_count', 'asset_listing', 'asset_basket', 'bookmark_listing', 'bookmark_basket', 'recommend_listing', 'recommend_basket');
+            clear_listing_cache_authors($node, $clear_list);
+          }
+          break;
+        case 'quiz':
+          // clear the cache
+          if (function_exists("clear_listing_cache")) {
+            clear_listing_cache($node);
+          }
+          break;
+        case 'community_interest_group':
+          // case 'discussion':
+          // clear the cache
+          if (function_exists("clear_listing_cache")) {
+            clear_listing_cache($node, 'community_listing');
+            clear_listing_cache($node, 'mobile_community_list');
+          }
+          break;
+      }
+      break;
+    case 'update':
+      switch($node->type) {
+        case 'institute':
+          cache_set("ins_" . $node->nid, $node, "cache_eb");
+          break;
+        case 'asset':
+           // clear the cache
+          if (function_exists("custom_cache_delete")) {
+            custom_cache_delete($node);
+          }
+          // clear the cache
+          if (function_exists("clear_listing_cache")) {
+            clear_listing_cache($node);
+          }
+          break;
+        case 'community_interest_group':
+           // clear the cache
+          if (function_exists("clear_listing_cache")) {
+            clear_listing_cache($node, 'community_listing');
+            clear_listing_cache($node, 'mobile_community_list');
+          }
+          cache_clear_all("community_listing:uid:" . $node->uid . ":", "cache_eb", TRUE);
+          break;
+       // case 'discussion':
+        case 'quiz':
+        case 'bead':
+          // clear the cache
+          if (function_exists("custom_cache_delete")) {
+            custom_cache_delete($node);
+          }
+          // clear the cache
+          if (function_exists("clear_listing_cache")) {
+            clear_listing_cache($node);
+          }
+          break;
+        case 'curriculum':
+          // clear the cache
+          if (function_exists("custom_cache_delete")) {
+            clear_listing_cache($node, "playlist_listing", "playlist_basket", "playlist_mobile");
+          }
+          // clear the cache
+          if (function_exists("clear_listing_cache")) {
+            custom_cache_delete($node);
+          }
+          $clear_list = array('playlist_listing_count', 'asset_listing', 'asset_basket', 'bookmark_listing', 'bookmark_basket', 'recommend_listing', 'recommend_basket');
+          clear_listing_cache_authors($node, $clear_list);
+          break;
+      }
+      break;
+    case 'delete':
+      switch ($node->type) {
+        case 'curriculum':
+            // clear the cache
+          if (function_exists("clear_listing_cache")) {
+            clear_listing_cache($node, "playlist_listing", "playlist_basket", "playlist_mobile");
+          }
+          // clear the cache
+          if (function_exists("custom_cache_delete")) {
+            custom_cache_delete($node);
+          }
+          $clear_list = array('playlist_listing_count', 'asset_listing', 'asset_basket', 'bookmark_listing', 'bookmark_basket', 'recommend_listing', 'recommend_basket');
+          clear_listing_cache_authors($node, $clear_list);
+          break;
+        case 'asset':
+           // clear the cache
+          if (function_exists("clear_listing_cache")) {
+            clear_listing_cache($node);
+          }
+           // clear the cache
+          if (function_exists("custom_cache_delete")) {
+            custom_cache_delete($node);
+          }
+          break;
+        case 'community_interest_group':
+           // clear the cache
+          if (function_exists("clear_listing_cache")) {
+            clear_listing_cache($node, 'community_listing');
+            clear_listing_cache($node, 'mobile_community_list');
+          }
+          break;
+        case 'quiz':
+        //case 'discussion':
+        case 'bead':
+          // clear the cache
+          if (function_exists("custom_cache_delete")) {
+            custom_cache_delete($node);
+          }
+           // clear the cache
+          if (function_exists("clear_listing_cache")) {
+            clear_listing_cache($node);
+          }
+          break;
+      }
+      break;
+  }
+}
+
+
+/**
+ * To delete cache
+ *
+ * Delete the bookmark and recommended cache data if the related node delete
+ *
+ * @param $node
+ *  It contains node object
+ *
+ */
+function custom_cache_delete($node) {
+  // For bookmarks related node delete from cache table
+  $query = db_query("SELECT uid FROM {bookmark} WHERE asset = %d", $node->nid);
+  if (db_affected_rows()) {
+    while($row = db_fetch_object($query)) {
+      //clear the cache
+      cache_clear_all("bookmark_listing:uid:" . $row->uid . ":", "cache_eb", TRUE);
+      cache_clear_all("bookmark_basket:uid:" . $row->uid . ":", "cache_eb", TRUE);
+      // for mobile clear cache
+      cache_clear_all("bookmark_mobile:uid:" . $row->uid . ":", "cache_eb", TRUE);
+    }
+  }
+  // For Recommend related node delete from cache table
+  $query = db_query("SELECT to_uid FROM {recommend} WHERE asset = %d", $node->nid);
+  if (db_affected_rows()) {
+    while($row = db_fetch_object($query)) {
+      //clear the cache
+      cache_clear_all("recommend_listing:uid:" . $row->to_uid . ":", "cache_eb", TRUE);
+      cache_clear_all("recommend_basket:uid:" . $row->to_uid . ":", "cache_eb", TRUE);
+      // for mobile clear cache
+      cache_clear_all("recommend_mobile:uid:" . $row->to_uid . ":", "cache_eb", TRUE);
+    }
+  }
+  
+}
+/**
+ * Clear asset related cache
+ *
+ */
+function clear_listing_cache($node, $listing_cid = "asset_listing", $basket_cid = "asset_basket", $listing_mobile = "asset_mobile") {
+  //clear the cache
+  //coauthor
+  if ($node->field_coauthor) {
+    foreach ($node->field_coauthor as $key => $value) {
+      if ($value['uid']) {
+        cache_clear_all($listing_cid . ":uid:" . $value['uid'] . ":", "cache_eb", TRUE);
+        cache_clear_all($basket_cid . ":uid:" . $value['uid'] . ":", "cache_eb", TRUE);
+        // for mobile clear cache
+        cache_clear_all($listing_mobile . ":uid:" . $value['uid'] . ":", "cache_eb", TRUE);
+      }
+    }
+  }
+  if ($node->field_reviewers) {
+    foreach ($node->field_reviewers as $key => $value) {
+      if ($value['uid']) {
+        cache_clear_all($listing_cid . ":uid:" . $value['uid'] . ":", "cache_eb", TRUE);
+        cache_clear_all($basket_cid . ":uid:" . $value['uid'] . ":", "cache_eb", TRUE);
+        // for mobile clear cache
+        cache_clear_all($listing_mobile . ":uid:" . $value['uid'] . ":", "cache_eb", TRUE);
+      }
+    }
+  }
+  // cleare the user related cache
+  if ( $node->field_author[0]['uid']) { 
+    cache_clear_all($listing_cid . ":uid:" . $node->field_author[0]['uid'] . ":", "cache_eb", TRUE);
+    cache_clear_all($basket_cid . ":uid:" . $node->field_author[0]['uid'] . ":", "cache_eb", TRUE);
+    // for mobile clear cache
+    cache_clear_all($listing_mobile . ":uid:" . $node->field_author[0]['uid'] . ":", "cache_eb", TRUE);
+  }
+  cache_clear_all($listing_cid . ":uid:" . $node->uid . ":", "cache_eb", TRUE);
+  cache_clear_all($basket_cid . ":uid:" . $node->uid . ":", "cache_eb", TRUE);
+  // for mobile clear cache
+  cache_clear_all($listing_mobile . ":uid:" . $node->uid . ":", "cache_eb", TRUE);
+}
+
+/**
+ * To clear listing and basket cache
+ *
+ * @param $list
+ *  It contains listing of custom cache id
+ * 
+ */
+function clear_listing_basket($list) {
+  global $user;
+  if (is_array($list)) {
+    foreach ($list as $value) {
+      cache_clear_all($value . ":uid:" . $user->uid, "cache_eb", TRUE);
+    }
+  }
+}
+
+
+/**
+ * Clear asset related cache
+ *
+ */
+function clear_listing_cache_authors($node, $list) {
+  //clear the cache
+  //coauthor
+  if ($node->field_coauthor) {
+    foreach ($node->field_coauthor as $key => $value) {
+      if ($value['uid']) {
+        if (is_array($list)) {
+          foreach ($list as $value) {
+            cache_clear_all($value . ":uid:" . $value['uid'], "cache_eb", TRUE);
+          }
+        }
+      }
+    }
+  }
+  if ($node->field_reviewers) {
+    foreach ($node->field_reviewers as $key => $value) {
+      if ($value['uid']) {
+        if (is_array($list)) {
+          foreach ($list as $value) {
+            cache_clear_all($value . ":uid:" . $value['uid'], "cache_eb", TRUE);
+          }
+        }
+      }
+    }
+  }
+  // cleare the user related cache
+  if ( $node->field_author[0]['uid']) {
+    if (is_array($list)) {
+      foreach ($list as $value) {
+        cache_clear_all($value . ":uid:" . $node->field_author[0]['uid'], "cache_eb", TRUE);
+      }
+    }
+  }
+}

@@ -1,0 +1,46 @@
+/** MLR Standard Styles starts here **/
+.node-form .hierarchical-select select.form-select{
+	width:107px;
+	height: 24px !important;
+}
+.hierarchical-select .ui-effects-wrapper{
+	display: inline;
+}
+/*.hierarchical-select-wrapper .hierarchical-select .selects, .hierarchical-select-wrapper .hierarchical-select .add-to-dropbox{
+	float: none;
+	display: block;
+}*/
+.hierarchical-select-wrapper .dropbox{
+	margin: 6px 0 0 0;
+}
+.hierarchical-select-wrapper{
+	margin-left: 175px;
+}
+
+.hierarchical-select-wrapper .dropbox{
+	display: block;
+}
+.hierarchical-select-wrapper .dropbox table,
+.hierarchical-select-wrapper .dropbox tr.dropbox-entry,
+.hierarchical-select-wrapper .dropbox tr.dropbox-entry td{
+	border: 0;
+}
+.hierarchical-select-wrapper .dropbox table{
+	width: 65%;
+}
+.hierarchical-select-wrapper .dropbox tr.dropbox-entry td{
+	background: #fff;
+	padding: 0;
+	text-align: left;
+}
+.hierarchical-select-wrapper .dropbox tr.dropbox-entry td, .dropbox-selected-item{
+	font-weight: normal;
+}
+
+.hierarchical-select-wrapper .hierarchical-select .add-to-dropbox{
+    background: #B9B9B9 url("/sites/all/modules/custom/eb_hierarchical_select_ext/templates/images/actions-icon.jpg") no-repeat 1px 5px;
+    padding: 0;
+    text-indent: -9999em;
+    width: 19px;
+    height: 24px;
+}

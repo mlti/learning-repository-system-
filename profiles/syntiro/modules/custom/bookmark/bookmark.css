@@ -1,0 +1,15 @@
+/*Drag drop objects bookmark block*/
+.bm-links { display: block; }
+/*.ui-draggable-dragging {  border: 1px dashed #000; background: #EFEFEF; padding: 6px; }*/
+#tempDisplay {
+  background: none repeat scroll 0 0 #D4DDE1;
+  color:#333;
+  font-size: 0.833em;
+  font-weight: bold;
+  padding: 5px;
+  position: absolute;
+  top: 20px;
+}
+
+#tempDisplay1 { margin-right: 5px; }
+#tempDisplay1 img { margin-top: 2px; }

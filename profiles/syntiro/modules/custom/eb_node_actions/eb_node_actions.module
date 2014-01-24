@@ -1,0 +1,203 @@
+<?php
+/**
+ * @file
+ * Define what are all the actions performed in different content type in Education Hub.
+ * Mainly generate node variables, that all are to be printed in Each node tpls.
+ */
+
+/**
+ * Implementation of hook_preprocess_node()
+ *
+ * Create General Actions variables to print in different node tpl's.
+ */
+function eb_node_actions_preprocess_node(&$vars){
+  global $user, $base_url;
+
+  // To Check If logged in user is coauthor, node rating option are not able to view for that user.
+  $co_author = 0;
+
+  if (!empty($vars['node']->field_coauthor) && $vars['node']->type == 'asset' || $vars['node']->type == 'curriculum') {
+    // Check for coauthor
+    $co_author = function_exists("check_coauthor") ? check_coauthor($vars['node']->field_coauthor) : NULL;
+  }
+
+  // For ratings
+  if (module_exists('fivestar')) {
+    if (user_access('rate content') && fivestar_validate_target('node', $vars['node']->nid) &&  ($vars['node']->field_published[0]['value'] == 1 || ($vars['node']->status == 1 && ($vars['node']->type != 'asset' || $vars['node']->type != 'curriculum'))) && !node_access('update',$vars['node']) && $co_author == 0 && (isset($vars['node']->field_custom_file_upload[0]['filename']) || isset($vars['node']->body) )) {
+      // check if currect user is rated or not
+      $check_rate = db_query("SELECT vote_id FROM {votingapi_vote} WHERE content_id=%d AND uid =%d", $vars['node']->nid, $user->uid);
+      if (!db_affected_rows()) {
+        $vars['fivestar_label'] = 'Rate This';
+        $vars['fivestar_widget'] = fivestar_widget_form($vars['node']);
+      }
+    }
+  } 
+  $share_status = 0;
+  $share_form = 0;
+  $download_status = 0;
+  $clone_status = 0;
+  $recommend_status = 0;
+  $recommend_form = 0;
+  $bookmark_status = 0;
+  $view_count = 0;
+
+  /**
+   * For preview section it will call from ajax at that time this section will not loaded
+   * Check whether the node is published or not
+   * Check logged in user is Author or Co Author of the node
+   *
+   * todo : ($co_author != 0 || $vars['node']->uid == $user->uid)
+  */
+
+  if ($_GET['status'] != 'ajax' && $_GET['mode'] != 'popup') {
+    //Create Share, Download option for Asset, Playlist content type only.
+    if(($vars['node']->type == 'asset') || ($vars['node']->type == 'curriculum') || ($vars['node']->type == 'bead')){
+      $share_status =  l('Share','', array('attributes'=>array('class' => 'share-link')));
+      //Construct Share Form.
+      
+      //$share_form =  drupal_get_form('share_embed') ;
+      $share_desc = check_plain(truncate_utf8(strip_tags($vars['node']->body), 50, FALSE, TRUE));
+      $share_form = '';
+      /* share link  code start*/
+      $sh_url = url("node/" . $vars['node']->nid, array('absolute' => TRUE));
+     // $fb_share_link = '<a name="fb_share" type="icon_link" share_url="' . $sh_url .'">Facebook</a><script src="http://static.ak.fbcdn.net/connect.php/js/FB.Share" type="text/javascript"></script>';
+      $fb_share_link = facebook_share($vars['node']->title, $share_desc, $sh_url);
+      $linkedin      = '<a href="http://www.linkedin.com/shareArticle?mini=true&url=' . $sh_url . '&title=' . $vars['node']->title . '&summary=' .  $share_desc . '&source=' . variable_get('site_name', '') .'" target="_new">Linkedin</a>';
+      $twitter       = '<a href="https://twitter.com/share?url=' . $sh_url .'" title="Click to share this post on Twitter" target = "_blank">Twitter</a>';
+   
+      $gshareUrl = $sh_url;
+      $gshareUrl .='&t='. $vars['node']->title;
+      $gshare        = '<a href="https://plus.google.com/share?url=' . $gshareUrl .'" target="_blank">Google Plus</a>';
+      
+      $myspace       = '<a href="http://www.myspace.com/index.cfm?fuseaction=postto&t=' . $vars['node']->title . '&u=' . $sh_url .'" target="_blank">MySpace</a>';
+      $stumbleupon   = '<a href="http://www.stumbleupon.com/submit?url=' . $sh_url . '&title=' . $vars['node']->title . '" target="_blank">StumbleUpon</a>';
+      $eb_share  = array(
+                    array('data' => $linkedin, 'Class' => 'linkedin-link'),
+                    array('data' => $fb_share_link, 'Class' => 'facebook-link'),
+                    array('data' => $myspace, 'Class' => 'myspace-link'),
+                    array('data' => $twitter, 'Class' => 'twitter-link'),
+                    array('data' => $stumbleupon, 'Class' => 'stumbleupon-link'),
+                    array('data' => $gshare, 'Class' => 'googleplus-link')
+                  );    
+      $share_form .= theme('item_list', $eb_share, NULL, 'ul', array('class' => ' share-list float-right '));
+      /* share link  code stop*/
+      
+      /*$share_form .= '<ul class="share-list float-right">
+                        <li class="linkedin-link"><a title="Linkedin" href="#">Linkedin</a></li>
+                        <li class="facebook-link"><a title="Facebook" href="#">Facebook</a></li>
+                        <li class="myspace-link"><a title="MySpace" href="#">MySpace</a></li>
+                        <li class="twitter-link"><a title="Twitter" href="#">Twitter</a></li>
+                        <li class="stumbleupon-link"><a title="StumbleUpon" href="#">StumbleUpon</a></li>
+                        <li class="googleplus-link"><a title="Google Plus" href="#">Google Plus</a></li>
+                      </ul>';*/
+                      
+                      
+      //Check the node type for creating Download link.
+      if($vars['node']->type == 'asset' || $vars['node']->type == 'bead'){
+        $download_status = l('Download','asset/' . $vars['node']->nid . '/overview/pdf', array('attributes'=>array('class' => ''), 'query' => 'mode=view'));
+      }
+      elseif($vars['node']->type == 'curriculum'){
+        $download_status = l('Download','curriculum/' . $vars['node']->nid . '/overview/pdf', array('attributes'=>array('class' => ''), 'query' => 'mode=view'));
+        //Clone option for Playlist content type.
+        //$clone_status = l('Clone','clone/' . $vars['node']->nid, array('attributes'=>array('class' => '')));
+      }
+    }
+    //Create Recommend option for recommend enabled Content type only.
+    if(module_exists('recommend') && variable_get('recommend_'. $vars['node']->type, 0) == 1 && user_access("access recommend")){
+      $recommend_status = l('Recommend','', array('attributes'=>array('class' => 'recommend-button')));
+      $recommend_form = drupal_get_form('recommend_form', $vars['node']->nid);
+    }
+    //Create Recommend option for recommend enabled Content type only.
+    if(module_exists('bookmark') && variable_get('bookmark_'. $vars['node']->type, 0) == 1){
+      if (function_exists("bookmark_this_link")) {
+        $bookmark_status = bookmark_this_link($vars['node']->nid, $vars['node']->type, $vars['node']->title, $vars['node']->body, TRUE);
+
+        //$bm_text = (strpos($bm_link, 'grey-star.png'))?'Bookmark':'Bookmarked';
+      }
+    }
+    //Calculate View count for Node.
+    if(($vars['node']->type == 'asset') || ($vars['node']->type == 'curriculum') || ($vars['node']->type == 'bead')){
+      //$view_count = '12 Views';
+    }
+
+    //Check Field Published for Asset, Playlist CCK. For Bead, Quiz CCK we need to check the Published Status.
+    if($vars['node']->field_published[0]['value'] == 1 || (($vars['node']->type == 'bead' || $vars['node']->type == 'quiz') && ($vars['node']->status == 1))) {
+      $vars['actions'] = '<div class="selected-list"><div class="seleted-action-option"><a href="javascript:;">Actions</a></div></div>';
+      $flag = 0;
+      if($share_status){
+        $option_list .= '<li>' . $share_status . '</li>';
+        $flag = 1;
+      }
+      if($bookmark_status){
+        $option_list .= '<li>' . $bookmark_status . '</li>';
+        $flag = 1;
+      }
+      if($recommend_status){
+        $option_list .= '<li>' . $recommend_status . '</li>';
+        $flag = 1;
+      }
+      if($download_status){
+        $option_list .= '<li>' . $download_status . '</li>';
+        $flag = 1;
+      }
+      if($clone_status){
+        $option_list .= '<li>' . $clone_status . '</li>';
+        $flag = 1;
+      }
+
+
+      if ($flag == 1) {
+        $vars['actions_options'] = '<div id="actions-available-option" style="display: block;"><ul>';
+        $vars['actions_options'] .= $option_list;
+        $vars['actions_options'] .= '</ul></div>';
+      }
+
+      if($view_count){
+        $vars['view_count'] = $view_count;
+      }
+
+      if($share_form){
+        $vars['share_form'] = $share_form;
+      }
+      if($recommend_form){
+        $vars['recommend_form'] = $recommend_form;
+      }
+      //Adobe Acrobat Reader prompt message. It should not showed in preview.
+      if($vars['node']->type == 'asset' && ($vars['node']->field_format[0]['value'] == 'HTML' || $vars['node']->field_format[0]['value'] == 'PDF')){
+        if($vars['node']->field_format[0]['value'] == 'HTML'){
+          $vars['adobe_message'] .= '<p class="adobe-text">Note: Please make sure you have <span class="adobe">' . l('Adobe Acrobat Reader', 'http://get.adobe.com/reader/', array('attributes' => array('title' => 'Download Adobe Reader', 'target' => '_blank'))) . '</span> installed on your computer to download and view this Asset.</p>';
+        }
+        elseif($vars['node']->field_format[0]['value'] == 'PDF'){
+          $vars['adobe_message'] .= '<p class="adobe-text">Note: Please make sure you have <span class="adobe">' . l('Adobe Acrobat Reader', 'http://get.adobe.com/reader/', array('attributes' => array('title' => 'Download Adobe Reader', 'target' => '_blank'))) . '</span> installed on your computer to view online and download this Asset.</p>';
+        }
+      }
+      if($vars['node']->type == 'bead'){
+        $vars['adobe_message'] .= '<p class="adobe-text">Note: Please make sure you have <span class="adobe">' . l('Adobe Acrobat Reader', 'http://get.adobe.com/reader/', array('attributes' => array('title' => 'Download Adobe Reader', 'target' => '_blank'))) . '</span> installed on your computer to download and view this Asset.</p>';
+      }
+      if($vars['node']->type == 'curriculum'){
+      //Adobe Acrobat Reader prompt message for Playlist
+        $vars['adobe_message'] .= '<p class="adobe-text">Note: Please make sure you have <span class="adobe">' . l('Adobe Acrobat Reader', 'http://get.adobe.com/reader/', array('attributes' => array('title' => 'Download Adobe Reader', 'target' => '_blank'))) . '</span> installed on your computer to download and view this Playlist.</p>';
+      }
+    }
+    //When an PDF Asset is unpublished we need to change the Abode message.
+    elseif(($vars['node']->type == 'asset') && ($vars['node']->field_published[0]['value'] == 0) && ($vars['node']->field_format[0]['value'] == 'PDF')){
+      $vars['adobe_message'] .= '<p class="adobe-text">Note: Please make sure you have <span class="adobe">' . l('Adobe Acrobat Reader', 'http://get.adobe.com/reader/', array('attributes' => array('title' => 'Download Adobe Reader', 'target' => '_blank'))) . '</span> installed on your computer to view online.</p>';
+    }
+  }
+}
+
+
+function facebook_share($title = NULL, $desc = NULL, $url = NULL, $path = NULL, $data = array()) { 
+  global $base_url;
+  $html ='';
+  $title = urlencode(trim($title));
+  $desc  = urlencode(trim($desc));
+  if($url) {
+    $html = '<a href="#"
+    title="Facebook"
+    onclick="window.open(\'http://www.facebook.com/sharer.php?s=100&p[title]='.$title.'&p[summary]='.$desc.'&p[url]='.$url.'&p[images][0]='.$path.'\',\'popUpWindow\',\'height=400,width=470,left=10,top=10,resizable=yes,scrollbars=yes,toolbar=no,menubar=no,location=no,directories=no,status=no\');">
+ 
+ </a>';
+  }
+  return $html;
+} 

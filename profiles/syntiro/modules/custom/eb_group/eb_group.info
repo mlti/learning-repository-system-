@@ -1,0 +1,6 @@
+; $Id: v 1.6 2011/08/08 06:08:PM Jaffar Exp $
+name = eb_group
+description = Group Modules.
+package = Education Bridge
+version = VERSION
+core = 6.x

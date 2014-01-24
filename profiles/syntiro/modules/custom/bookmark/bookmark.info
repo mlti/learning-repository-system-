@@ -1,0 +1,6 @@
+; $Id: bookmark.info $
+name = Bookmark
+description = Bookmarking the assets
+package = Education Bridge
+version = VERSION
+core = 6.x

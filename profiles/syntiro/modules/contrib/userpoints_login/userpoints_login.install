@@ -1,0 +1,48 @@
+<?php
+
+/**
+ * @file
+ * Install, update, and uninstall functions for the userpoints_login menu module.
+ */
+
+/**
+ * Implementation of hook_install().
+ */
+function userpoints_login_install() {
+  drupal_install_schema('userpoints_login');
+}
+
+/**
+ * Implementation of hook_uninstall().
+ */
+function userpoints_login_uninstall() {
+  drupal_uninstall_schema('userpoints_login');
+  db_query("DELETE FROM {variable} WHERE name LIKE 'userpoints_login%'");
+}
+
+/**
+ * Implementation of hook_schema().
+ */
+function userpoints_login_schema() {
+  $schema = array();
+
+  $schema['userpoints_login'] = array(
+    'description' => 'Records userpoints logins',
+    'fields' => array(
+      'uid' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'default' => NULL,
+        'not null' => TRUE,
+      ),
+      'timestamp' => array(
+        'type' => 'int',
+        'default' => NULL,
+        'not null' => TRUE,
+      ),
+    ),
+    'primary key' => array('uid'),
+  );
+
+  return $schema;
+}

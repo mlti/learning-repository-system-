@@ -1,0 +1,854 @@
+<?php
+// \$Id\$
+
+/**
+ * Implementation of hook_menu
+ */
+function login_register_menu() {
+  $items = array();
+
+  $items['user/%user/profile'] = array(
+    'title callback' => 'check_plain',
+    'title' => drupal_ucfirst('Profile'),
+    'page callback' => 'content_profile_page_edit',
+    'page arguments' => array('profile', 1),
+    'access callback' => 'content_profile_page_access',
+    'access arguments' => array('profile', 1),
+    'file' => 'node.pages.inc',
+    'tab_parent' => 'user/%/edit',
+    'weight' => 10,
+    'file path' => drupal_get_path('module', 'node'),
+    'type' => MENU_LOCAL_TASK,
+  );
+  if (module_exists('sso_client') && !variable_get('openid_login_custom_override', false)) {}
+  else {
+    $items['admin/eb-user-login'] = array(
+      'title' => 'Edubridge reset password user login',
+      'description' => 'Edubridge reset password user login',
+      'page callback' => 'system_admin_menu_block_page',
+      'access arguments' => array('admin access mobile service'),
+      'file' => 'system.admin.inc',
+      'file path' => drupal_get_path('module', 'system'),
+    );
+    $items['admin/eb-user-login/settings'] = array(
+      'title'            => 'Edubridge reset password mail',
+      'description'      => 'Edubridge reset password mail.',
+      'access arguments' => array('administer site configuration'),
+      'page callback'    => 'drupal_get_form',
+      'page arguments'   => array('eb_login_user_settings'),
+      'type'             => MENU_NORMAL_ITEM,
+    );
+  }
+  return $items;
+}
+
+/**
+ * Implementation of hook_theme
+ */
+
+function login_register_theme() {
+  return array(
+    'register_theme' => array(
+      'arguments' => array('form' => NULL),
+    ),
+    'forgotpassword_theme' => array(
+      'arguments' => array('form' => NULL),
+    ),
+    'loginpage_theme' => array(
+      'arguments' => array('form' => NULL),
+    ),
+    'user_login_block_theme' => array(
+      'arguments' => array('form' => NULL),
+    ),
+  );
+}
+
+
+/**
+ * Implementation of hook_form_alter
+ */
+function login_register_form_alter(&$form, &$form_state, $form_id) {
+  global $user;
+  switch ($form_id) {
+    case 'user_register':
+      /* Following code added for making email and username  common*/
+      /* code start*/
+      // Remove required field from username
+      // To avoid drupal core user validation, we need to remove
+      // add excat another validation which has only email validation
+
+      // resign mail to username
+      $form['name']['#required'] = 0; // Remove required field
+      $form['name']['#prefix'] = '<div style="display:none;">';
+      $form['name']['#suffix'] = '</div>';
+      if (in_array('user_register_validate', $form['#validate'])) {
+        $validate_key = array_search('user_register_validate', $form['#validate']);
+        $form['#validate'][$validate_key] = 'user_extn_user_register_validate';
+      }
+      array_unshift($form['#validate'], "eb_mail_to_username");
+      /* code stop*/
+      if (module_exists('sso_client') && !variable_get('openid_login_custom_override', false)) {}
+      else {
+        $form['#submit'][] = 'eb_admin_user_register_submit'; //Calls function
+      }      
+    break;
+    case 'user_login':
+      // to change the email text
+         // to change the email text
+      $form['name']['#title'] = "Email ID";
+      // to make all the descriptions empty
+      $form['#after_build'][] = 'user_login_after_build'; //Calls function
+      // creates theme for login page.
+      $form['#theme'][] = 'loginpage_theme'; //Calls function
+      // custom login validate.
+      $form['#validate'][] = "custom_login_validate"; //Calls function
+      $form['remember_me']['#title'] =  t('Stay signed in');
+    break;
+    case 'user_pass':
+     $form['name']['#title'] = "Email Address";
+      $form['#after_build'][] = 'forgot_password_after_build'; //Calls function
+      $form['#theme'][] = 'forgotpassword_theme'; //Calls function
+      //$form['name']['#rules'] = array('email');
+    break;
+    case 'user_profile_form':
+      drupal_set_title(check_plain(create_eduauthor($user->uid, NULL, TRUE)));  
+      $form['timezone']['#prefix'] = "<div style='display:none'>";
+      $form['timezone']['#suffix'] = "</div>";
+      $form['enable_pm_mail']['#prefix'] = "<div style='display:none'>";
+      $form['enable_pm_mail']['#suffix'] = "</div>";
+      if ($user->uid != 1) {
+        $form['account']['autologout']['#access']   = FALSE; // remove autocomplete access expect super admin
+        $form['account']['mail']['#access']   = FALSE; // remove access expect super admin
+      }
+      /* Following code added for making email and username  common*/
+      /* code start*/
+      $form['#validate'][] = 'eb_mail_to_username';
+      $form['account']['name']['#required'] = 0;
+      $form['account']['name']['#prefix'] = '<div style="display:none;">';
+      $form['account']['name']['#suffix'] = '</div>';
+      /* code stop*/
+
+      if(arg(0) == 'user' && arg(1) == $user->uid && arg(2) == 'edit') {
+        $form['submit']['#prefix'] = '<div class="button-main">';
+        $form['picture']['picture_upload']['#description'] = 'Your virtual face or picture. Image dimensions Should be of 200x200 and the maximum size is 30 kB.';
+        $form['cancel'] = array(
+        '#type' => 'button',
+        '#weight' => 70,
+        '#attributes' => array('onClick' => 'location.replace("'. url('user/'.$user->uid) .'"); return false;'),
+        '#value' => t('Cancel'),
+        '#suffix' => '</div>',
+        );
+      }
+      $form['#validate'][] = 'user_password_validate';
+      if (!user_access('administer users')) {
+        $form['#redirect'] = url('user/' . $user->uid);
+      }
+    break;
+    case 'user_login_block':
+      $form['name']['#prefix'] = '<div class="login-block-input-wrapper">';
+      $form['name']['#suffix'] = '</div>';
+      $form['pass']['#prefix'] = '<div class="login-block-input-wrapper">';
+      $form['pass']['#suffix'] = '</div>';
+      $form['#theme'][] = 'user_login_block_theme';
+      $form['name']['#title'] = t('Email ID');
+      $form['#validate'][] = "custom_login_validate"; //Calls function
+    break;
+    case 'user_admin_settings':
+      if (is_array($form['email']) && $form['email']['#type'] == 'fieldset') {
+        foreach ($form['email'] AS $key => $value) {
+          if (is_array($value) && $value['#type'] == 'fieldset') {
+            $form['email'][$key]['#description'] .= '<br />' . t('Also available variables are: ') . '!first_name, !last_name';
+          }
+        }
+      }
+     break;
+    case 'user_preference_list':
+      drupal_set_title(check_plain(create_eduauthor($user->uid, NULL, TRUE)));
+      $form['submit']['#value'] = 'Save';
+      if(arg(0) == 'user' && arg(1) == $user->uid && arg(2) == 'preferences') {
+        $form['cancel'] = array(
+        '#type' => 'button',
+        '#weight' => 70,
+        '#attributes' => array('onClick' => 'location.replace("'. url('user/'.$user->uid) .'"); return false;'),
+        '#value' => t('Cancel'),
+        );
+      }
+      break;
+    case 'user_pass':
+      $form['name']['#prefix'] = '<div class="clearfix">';
+      $form['name']['#suffix'] = '</div>';
+      $form['submit']['#prefix'] = '<div class="button-main">';
+      $form['submit']['#suffix'] = '</div>';
+    break;
+    case 'profile_node_form':
+      if(!user_access('administer users')){
+        $form['field_institute']['#prefix'] = '<div style ="display:none">';
+        $form['field_institute']['#suffix'] = '</div>';
+      }
+      // for phone fields server side validation
+     // $form['field_profile_phone'][0]['#rules'] = array('numeric_validate');
+      drupal_set_title(check_plain(create_eduauthor($user->uid, NULL, TRUE)));
+      $form['buttons']['submit']['#prefix'] = '<div class="button-main">';
+      if(arg(0) == 'user' && arg(1) == $user->uid && arg(2) == 'edit' && arg(3) == 'profile') {
+        drupal_add_js(drupal_get_path('module', 'eb_others') . '/js/eb_others.js');
+        $form['buttons']['cancel'] = array(
+        '#type' => 'button',
+        '#weight' => 70,
+        '#attributes' => array('onClick' => 'location.replace("'. url('user/'.$user->uid) .'"); return false;'),
+        '#value' => t('Cancel'),
+        '#suffix' => '</div>',
+        );
+      }
+      $form ['title'] = '';
+      if (!user_access('administer users')) {
+        $form['#redirect'] = url('user/' . $user->uid);
+      }
+    break;
+    case 'user_pass_reset':
+      
+   
+    break;
+
+  }
+}
+/**
+ * user password custom validation.
+ *
+ */
+function user_password_validate(&$form, &$form_state) {
+  if (strlen($form_state['clicked_button']['#post']['pass']['pass1']) > 0 || strlen($form_state['clicked_button']['#post']['pass']['pass2']) > 0) {
+    if (!trim($form_state['clicked_button']['#post']['pass']['pass1']) || !trim($form_state['clicked_button']['#post']['pass']['pass2'])) {
+      form_set_error('pass', "Please Enter the valid Password in both Password and Confirm Password");
+    }
+  }
+}
+/**
+ * Implementation of hook_fapi_validation_rules().
+ *
+ */
+function login_register_fapi_validation_rules() {
+  return array(
+    'numeric_validate' => array(
+      'callback' => 'numeric_validate_rule',
+      'error_msg' => t('Please Enter Numeric value and length should be less than 11.'),
+    )
+  );
+}
+/**
+ * Numeric and length validation Validation
+ *
+ * @param $value
+ *  It contains values
+ *
+ * @return
+ *  It returns true or false
+ */
+function numeric_validate_rule($value) {
+  if (is_numeric($value['value']) && strlen($value['value']) <= 10) {
+    return true;
+  }
+  else {
+    return false;
+  }
+}
+
+/**
+ * theme function for forgot password form.
+ *
+ */
+function theme_forgotpassword_theme($form) {
+  $output  = "<h2>Forgot Your Password ?</h2>";
+  $output .= "<p class='password-hint'>Please type the email you use to Login to your Acrossworld Account</p>";
+  $output .= drupal_render($form);
+
+  return $output;
+}
+
+
+/**
+ * theme function for login page
+ *
+ */
+function theme_loginpage_theme($form) {
+  $output  = "<h2>Login</h2>";
+  $output .= "<p class='password-hint'>Please enter your Email Address and Password to login</p>";
+  $output .= drupal_render($form['name']);
+  $output .= drupal_render($form['pass']);
+  $output .= '<div class="remember-forget clearfix">';
+  $output .= drupal_render($form['remember_me']);
+  $output .= '<div class="forgot-link"><a href="/user/password" title="Request new password via e-mail." tabindex="1">Forgot your password?</a></div>';
+  $output .= '</div>';
+  $output .= drupal_render($form);
+
+  return $output;
+}
+
+
+/**
+ * theme function for login page
+ *
+ */
+function theme_user_login_block_theme($form) {
+  //echof($form);
+  //to not display the forgot password link in forgot password page.
+  if(arg(0) == 'user' && arg(1) == 'password') {
+    $forgot_pass_link = '';
+  } else {
+    $forgot_pass_link = '<div class="forgot-link"><a href="/user/password" title="Request new password via e-mail.">Forgot your password?</a></div>';
+  }
+  $output .= drupal_render($form['name']);
+  $output .= drupal_render($form['pass']);
+  $output .= '<div class="remember-forget clearfix">';
+  $output .= drupal_render($form['remember_me']);
+  $output .= $forgot_pass_link;
+  $output .= '</div>';
+  $output .= drupal_render($form);
+
+  return $output;
+}
+
+
+/**
+ * To make all the descriptions empty
+ * for user login page
+ *
+ */
+function user_login_after_build(&$form, &$form_state) {
+  $form['name']['#description'] = '';
+  $form['pass']['#description'] = '';
+
+  return $form;
+}
+
+/**
+ * To make all the descriptions empty
+ * for user login page
+ *
+ */
+function forgot_password_after_build(&$form, &$form_state) {
+  //echopre($form);
+  $form['name']['#description'] = '';
+  $form['submit']['#value'] = 'Email New Password';
+  return $form;
+}
+
+
+
+/**
+ * Custom Function to validate the User login form.
+ */
+function custom_login_validate($form, &$form_state) {
+  global $user;
+  $redirect_flag = 0;
+  if (!$user->uid) {
+    $form_values = $form_state['values'];
+    $mail_chk = user_load(array('name' => $form_values['name'], 'status' => 1));
+    if (!$mail_chk->uid) {
+      drupal_get_messages();
+      $siteadmin_mail = variable_get("site_mail", NULL);
+      //$role_id = db_result(db_query("select rid from role where name = 'Site Admin'"));
+      //if ($role_id) {
+      //  $siteadmin_mail = db_result(db_query("select U.mail from users U INNER JOIN users_roles UR on U.uid = UR.uid where UR.rid=%d", $role_id));
+      //}
+      $redirect_flag = 1;
+      form_set_error('name', t('<h5> Incorrect Email Address</h5><p>The email address you entered does not belong to any account. Make sure that it is typed correctly. If the problem persists, <a href=mailto:@contact_name>Click Here</a> to contact the site administrator</p>', array('@contact_name' => $siteadmin_mail)), TRUE);
+
+    }
+    else if ($mail_chk->uid) {
+      $pass_chk = user_load(array('name' => $form_values['name'], 'pass' => trim($form_values['pass']), 'status' => 1));
+      if (!$pass_chk->uid) {
+        drupal_get_messages();
+        $redirect_flag = 1;
+        form_set_error('name', t('<h5> Incorrect Password</h5><p>The password you entered is incorrect. Please try again (make sure caps lock is off). Forgot your password?, <a href="@password">Click Here</a> to request a new password</p>', array('@password' => url('user/password'))), TRUE);
+      }
+    }
+
+    if ($form_state['values']['form_id']  == 'user_login_block' && $redirect_flag) {
+        unset($_REQUEST['destination']);
+        drupal_goto('user/login');
+    }
+  }
+}
+
+
+/**
+ * Implementation of content_profile_preprocess_HOOK()
+ *
+ * Hide content profile tabs
+ *
+ */
+function login_register_preprocess_content_profile_display_view(&$variables) {
+  $element = $variables['element'];
+  $node = content_profile_load($element['#content_type'], $element['#uid']);
+  $variables['node'] = &$node;
+  $variables['uid'] = $element['#uid'];
+  $variables['type'] = $element['#content_type'];
+
+  $path = drupal_get_path('module', 'content_profile') .'/content_profile.css';
+  drupal_add_css($path, 'module', 'all', FALSE);
+
+  $variables['title'] = check_plain(node_get_types('name', $node->type));
+
+  $tabs = array();
+  if ($element['#edit_link']) {
+    $tabs[] = theme('content_profile_display_tab_view', $node);
+    $tabs[] = theme('content_profile_display_tab_edit', $node);
+  }
+  if (count($tabs) > 0) {
+    $variables['tabs'] = $tabs;
+  }
+
+  unset($variables['title']);
+  unset($variables['tabs']);
+
+  $variables['content'] = node_view($node, ($element['#style'] == 'teaser'), TRUE, TRUE);
+}
+
+
+function login_register_init() {
+  // We have to perform a load in order to assure that the $user->og_groups bits are present.
+  global $user;
+  if (!isset($user->eb_user_institute)) {
+    $user->eb_user_institute = $_SESSION['eb_user_institute'];
+  }
+}
+
+/**
+ * Implementation of hook_user().
+ *
+ */
+function login_register_user($op, $edit, &$account, $category = NULL) {
+  global $user, $base_url;
+  switch ($op) {
+    case 'login':
+      if (isset($account->remember_me) && $account->remember_me) {
+        db_query("DELETE FROM {autologout} WHERE uid = %d", $account->uid);
+        db_query("INSERT INTO {autologout} SET uid = %d, setting = %d", $account->uid, 1);
+      }
+      else {
+        db_query("DELETE FROM {autologout} WHERE uid = %d", $account->uid);
+      }
+      $_SESSION['eb_user_institute']  = function_exists("content_profile_load") ? content_profile_load('profile', $user->uid) : NULL;
+      if($user->uid) {
+        if (user_access("administer nodes")) {
+            $_REQUEST['destination'] = 'admin/by-module';
+          }
+          else if (user_access("administer users")) {
+            $_REQUEST['destination'] = 'admin/user/user/list';
+          } 
+          else if (user_access("create asset content")) {
+            $_REQUEST['destination'] = 'bridge/myassets';
+          }
+          else {
+            $_REQUEST['destination'] = 'bridge/myassignments';
+          }
+      }
+      break;
+    case 'insert':
+      if (is_array($account)) {
+        $account['name'] = $account['mail'];
+      }
+      elseif (is_object($account)) {
+        $account->name = $account->mail;
+      }
+      case 'update':
+      if (is_array($account)) {
+        $account['name'] = $account['mail'];
+      }
+      elseif (is_object($account)) {
+        $account->name = $account->mail;
+      }
+      $node = function_exists("content_profile_load") ? content_profile_load('profile',$account->uid) : NULL;
+      // Apache Solr Index Purpose
+      if (function_exists('_apachesolr_nodeapi_update')) {
+        _apachesolr_nodeapi_update($node);
+      }
+    break;
+    case 'view':
+      //set_profile_editing_off();
+      $account->og_groups = '';
+    break;
+    case 'delete':
+    case 'update':
+      $node = content_profile_load('profile',$account->uid);
+      // Apache Solr Index Purpose
+      if (function_exists('_apachesolr_nodeapi_update')) {
+        _apachesolr_nodeapi_update($node);
+      }
+    break;
+    case 'submit':
+      
+      if (md5($edit['pass']) != $account->pass) {
+        if ($user->uid  ==  $account->uid) {
+          if (module_exists('sso_client') && !variable_get('openid_login_custom_override', false)) {
+            $_SESSION['eb_user_pasword_change'] = TRUE;
+          }
+          else {
+            eb_login_register_mail_notify('eb_user_pasword_change', $account, TRUE);
+          }
+        }
+      } 
+    break;
+    case 'validate':
+      // check user email address
+      //if (filter_var($edit['mail'], FILTER_VALIDATE_EMAIL)) { 
+      //  form_set_error($edit['mail'], t('The e-mail address %mail is not valid.', array('%mail' => $edit['mail'])) );
+      //}
+      if (isset($edit['mail']) && function_exists("validateEmail") && !validateEmail($edit['mail'])) { 
+        form_set_error('mail', t('The e-mail address %mail is not valid.', array('%mail' => $edit['mail'])) );
+      }
+      break;
+  }
+}
+
+
+function eb_mail_to_username($form, &$form_state) {
+  $form_state['values']['name'] = $form_state['values']['mail'];
+}
+
+
+/**
+ * Override User register form validate.
+ * 
+ */
+function user_extn_user_register_validate($form, &$form_state) {
+  // Validate the e-mail address:
+  //if ($error = user_validate_mail($form_state['values']['mail'])) {
+  //form_set_error('mail', $error);
+  //}
+  
+  if (function_exists("validateEmail") && !validateEmail($form_state['values']['mail'])) {
+    form_set_error('mail', t('The e-mail address %mail is not valid.', array('%mail' => $form_state['values']['mail'])) );
+  }
+  else if (db_result(db_query("SELECT COUNT(*) FROM {users} WHERE uid != %d AND mail = '%s'", FALSE, $form_state['values']['mail'])) > 0) {
+    form_set_error('mail', t('The e-mail address %email is already registered. <a href="@password">Have you forgotten your password?</a>', array('%email' => $form_state['values']['mail'], '@password' => url('user/password'))));
+  }
+  else if (drupal_is_denied('mail', $form_state['values']['mail'])) {
+    form_set_error('mail', t('The e-mail address %email has been denied access.', array('%email' => $form_state['values']['mail'])));
+  }
+}
+
+/**
+ * Implements hook_nodeapi().
+ *
+ */
+function login_register_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
+  global $user;
+  switch ($op) {
+    case 'presave':
+      switch ($node->type) {
+        case 'profile':
+          $field = content_fields('', $node->type);
+          foreach ($field as $key => $value ) {
+            if ($node->{$key}[0]['value']) {
+              $node->{$key}[0]['value'] = trim($node->{$key}[0]['value']);
+            }
+          }
+          break;
+      }
+      break;
+    case 'validate':
+      switch ($node->type) {
+        case 'profile':
+          if ($node->field_profile_phone[0]['value']) {
+            if (!is_numeric($node->field_profile_phone[0]['value']) ) {
+              form_set_error('field_profile_phone', "Please Enter Numeric value and length should be less than 11.");
+            }
+            elseif(strlen($node->field_profile_phone[0]['value']) > 10) {
+              form_set_error('field_profile_phone', "Please Enter Numeric value and length should be less than 11.");
+            }
+          }
+          break;
+      }
+      break;
+  }
+
+}
+
+
+function eb_login_register_mail_notify($op, $account = NULL, $user_send = FALSE) {
+  $from_name = 'EducationHub Admin';
+  $from_mail = variable_get('site_mail', ini_get('sendmail_from'));
+  $variables = eb_login_register_mail_tokens($account, $language);
+  switch ($op)  {
+    case 'eb_user_pasword_change':
+      if ($user_send &&  variable_get('notifi_mail_to_user_reset_pass_mail', 1)) {
+        $subject = variable_get('notifi_mail_to_user_reset_pass_subject', '');
+        $body    = variable_get('notifi_mail_to_user_reset_pass_body', '');
+        $language = NULL;
+        $subject =  t($subject, $variables);
+        $body =  nl2br(t($body, $variables));
+        $to_mail = $account->mail;
+        $mail_id = $op . '_user';
+        login_register_custom_mail($from_name, $from_mail, $to_mail, $subject, $body, $mail_id);  
+      }
+    break;
+  }
+}
+
+function eb_login_register_mail_tokens($account, $language) {
+  global $base_url; 
+  $system_user_roles = user_roles(TRUE);
+  unset($system_user_roles[DRUPAL_AUTHENTICATED_RID]);
+  if (isset($account->other)) {
+    $firstname = ucfirst($account->load->profile->field_profile_first_name[0]->value);
+    $lastname = $account->load->profile->field_profile_last_name[0]->value;
+  }
+  else if (isset($account->extra['first_name'])) {
+    $firstname = ucfirst($account->extra['first_name']);
+    $lastname = $account->extra['last_name'];
+  }
+  else if (isset($account->uid)) {
+    $pf_user = function_exists("content_profile_load") ? content_profile_load('profile', $account->uid) : NULL;
+    if ($pf_user) {
+      $firstname = ucfirst($pf_user->field_profile_first_name[0]['value']);
+      $lastname = $pf_user->field_profile_last_name[0]['value'];
+    }
+  }
+  
+  if (isset($account->extra['mail'])) {
+    $eb_mail = $account->extra['mail'];
+  }
+  else if($account->mail) {
+    $eb_mail = $account->mail;
+  }
+  else {
+    $eb_mail ='';
+  }
+  $eb_notes = nl2br($account->extra['notes']);
+  $eb_rid = 0;
+  if (isset($account->extra['rid'])) {
+    $eb_rid = $account->extra['rid'];  
+  }
+  else if (isset($account->extra['roles'])) {
+     $eb_rid = $account->extra['roles'];
+  }
+  else if (isset($account->roles)) {
+    $role_arr = array();
+    $role_names =  array(EB_STUDENT, EB_TEACHER);
+    $query = db_query("SELECT R.* FROM {role} R WHERE LOWER(R.name) IN (" . db_placeholders($role_names, 'varchar') . ")", $role_names);
+    if (db_affected_rows()) {
+      while($row = db_fetch_object($query)) {
+        $role_arr[$row->rid] = $row->name;
+      }
+    }
+    foreach($role_arr AS $ckkey => $ckvalue) {
+      if (array_key_exists($ckkey, $account->roles)) {
+        $eb_rid = $ckkey;
+        break;
+      }
+   } 
+  }
+  $hubinstitute_name = '';
+  if (isset($account->other)) { // user present in other institute
+    $institute_name = $account->institute_name;  
+  }
+  else if (isset($account->extra['hubinstitute_name'])) {
+    $institute_name = $account->extra['hubinstitute_name'];  
+  }
+  else if (isset($account->profile->field_institute[0]['nid'])) {
+    $ins_id = $account->profile->field_institute[0]['nid'];
+    $institute_name = node_load($ins_id)->title;
+  }
+  else {
+    $ins_id = $account->institute_id;
+    $institute_name = node_load($ins_id)->title;
+  }
+  
+  if ($account->extra['secondinstitute_id']) {
+    $sec_ins_id = $account->extra['secondinstitute_id'];
+    $role_arr = array();
+    $role_names =  array(EB_STUDENT, EB_TEACHER);
+    $query = db_query("SELECT R.* FROM {role} R WHERE LOWER(R.name) IN (" . db_placeholders($role_names, 'varchar') . ")", $role_names);
+    if (db_affected_rows()) {
+      while($row = db_fetch_object($query)) {
+        $role_arr[$row->rid] = $row->name;
+      }
+    }
+    foreach($role_arr AS $ckkey => $ckvalue) {
+      if (array_key_exists($ckkey, $account->roles)) {
+        $eb_rid = $ckkey;
+        break;
+      }
+   }   
+  }
+  else if (isset($account->other)) {
+    $sec_ins_id = $account->extra['secondinstitute_id'];
+  }
+  if($eb_rid == 0) {
+    $rolename = '';
+  }
+  else {
+    $rolename = ucfirst($system_user_roles[$eb_rid]);
+  }
+  $tokens = array(
+    '!firstlastname' => $firstname . ' '  . $lastname,
+    '!firstname' => $firstname,
+    '!lastname' => ucfirst($lastname),
+    '!institutename' => ucfirst($institute_name),
+    '!secondinstitutename' => $sec_ins_id ? ucfirst(node_load($sec_ins_id)->title) : '',
+    '!rolename' => $rolename,    
+    '!ebmail' => $eb_mail,
+    '!eb_notes' => $eb_notes,    
+    '!site' => variable_get('site_name', 'Drupal'),
+    '!eb_site_mail' => variable_get('site_mail', ini_get('sendmail_from')),
+    '!login_url' => l(user_pass_reset_url($account).'/login',user_pass_reset_url($account).'/login'), 
+    '!uri' => $base_url, 
+    '!uri_brief' => preg_replace('!^https?://!', '', $base_url), 
+    '!mailto' => $account->mail, 
+    '!date' => format_date(time(), 'medium', '', NULL, $language->language), 
+    '!login_uri' => url('user', array('absolute' => TRUE, 'language' => $language)), 
+    '!edit_uri' => l(url('user/' . $account->uid . '/edit', array('absolute' => TRUE, 'language' => $language)), url('user/' . $account->uid . '/edit', array('absolute' => TRUE, 'language' => $language))),
+    '!click_here' => l('click here', url('user/' . $account->uid . '/edit', array('absolute' => TRUE, 'language' => $language)))
+  );
+  return $tokens;
+}
+
+/**
+* To generate mail
+*
+* @param $from_name
+*  It contains from user name
+*
+* @param $from_mail
+*  It contains from user mail id
+* @param $to_mail
+*  It contains to user mail id
+* @param $subject
+*  It contains mail subject
+* @param $body
+*  It contains mail body
+* @package $mail_id
+*  It contains mail id to alter this mail
+*
+* @return $result
+*  It contains mail sent status
+*
+*/
+function login_register_custom_mail($from_name = 'EducationHub Admin', $from_mail, $to_mail, $subject, $body, $mail_id = 'educationhub_mail') {
+ $headers = array(
+   'MIME-Version' => '1.0',
+   'Content-Type' => 'text/html; charset=UTF-8; format=flowed; delsp=yes',
+   'Content-Transfer-Encoding' => '8Bit',
+   'X-Mailer' => 'Drupal',
+ );
+  $result = drupal_mail_send($message = array(
+    'id' => $mail_id,
+    'to' => $to_mail,
+    'from' => $from_name . '<'. $from_mail . '>',
+    'subject' => $subject,
+    'body' => $body,
+    'headers' => $headers,
+  ));
+  // Log errors
+  if (!$result) {
+    watchdog('mail', 'Error sending e-mail (from %from to %to).', array('%from' => $message['from'], '%to' => $message['to']), WATCHDOG_ERROR);
+    drupal_set_message(t('Unable to send e-mail. Please contact the site administrator if the problem persists.'), 'error');
+  }
+ return $result;
+}
+
+
+/**
+ * Custom form hub user setting
+ *
+*/
+function eb_login_user_settings() {
+  $form = array();
+  $form['eb_user_reset_pass_mail'] = array(
+    '#type' => 'fieldset',
+    '#title' => t("Notification that you reset your password"),
+    '#collapsible' => TRUE,
+    '#collapsed' => TRUE,
+  );
+  $form['eb_user_reset_pass_mail']['notifi_mail_to_user_reset_pass_subject'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Subject'),
+    '#default_value' => variable_get('notifi_mail_to_user_reset_pass_subject', '')
+  );
+  $form['eb_user_reset_pass_mail']['notifi_mail_to_user_reset_pass_body'] = array(
+    '#type' => 'textarea',
+    '#title' => t('Body message'),
+    '#rows' => 3,
+    '#cols' => 8,
+    '#default_value' => variable_get('notifi_mail_to_user_reset_pass_body', '')
+  );
+  $form['eb_user_reset_pass_mail']['notifi_mail_to_user_reset_pass_mail'] = array(
+   '#type' => 'checkbox',
+   '#title' => t('Send mail'),
+   '#default_value' => variable_get('notifi_mail_to_user_reset_pass_mail', 1),
+   '#description' => t("If its checked then mail will send, else mail wont sent")
+  );
+  return system_settings_form($form);
+}
+
+
+/**
+ * Implementation of hook_mail_alter().
+ */
+
+function login_register_mail_alter(&$message) {
+  if (module_exists('sso_client') && !variable_get('openid_login_custom_override', false)) {}
+  else {
+    switch($message['id']) {
+      case 'user_password_reset':
+        if (isset($message['params']['account']->uid)) {
+          $tuid = $message['params']['account']->uid;
+          $pf_user = function_exists("content_profile_load") ? content_profile_load('profile', $tuid) : NULL;
+          $cp_firstname = ucfirst($pf_user->field_profile_first_name[0]['value']);
+          $cp_lastname = $pf_user->field_profile_last_name[0]['value'];
+          $cp_ins_nid  = $pf_user->field_institute[0]['nid'];
+          $cp_ins_name   = node_load($cp_ins_nid)->title;
+          $cp_firstlastname = $cp_firstname . ' ' . $cp_lastname;
+          $token_replacements = array(
+          '!firstlastname' => $cp_firstlastname,
+          '!institutename' => $cp_ins_name
+          );
+          $message['subject'] = strtr($message['subject'], $token_replacements);
+          $message['body'] 		= strtr($message['body'][0], $token_replacements);
+        }
+      break;
+      case 'user_register_admin_created':
+        if (isset($message['params']['account']->uid)) {
+          $eb_admin_user_register_info = unserialize($_SESSION['eb_admin_user_register_info']);
+          if (strtolower(trim($message['to'])) == strtolower(trim($eb_admin_user_register_info['mail']))) {
+            $tuid = $message['params']['account']->uid;
+            $cp_firstname = ucfirst($eb_admin_user_register_info['field_profile_first_name'][0]['value']);
+            $cp_lastname = $eb_admin_user_register_info['field_profile_last_name'][0]['value'];
+            $cp_ins_nid  = $eb_admin_user_register_info['field_institute']['nid']['nid'];
+            $cp_ins_name   = node_load($cp_ins_nid)->title;
+            $cp_firstlastname = $cp_firstname . ' ' . $cp_lastname;
+            $token_replacements = array(
+              '!firstlastname' => $cp_firstlastname,
+              '!institutename' => $cp_ins_name
+            );
+            $message['subject'] = strtr($message['subject'], $token_replacements);
+            if (count($message['body']) > 0 && is_array($message['body'])) {
+              
+              $message['body'] 		= strtr($message['body'][0], $token_replacements);
+            }
+            else {
+              echo 'else';
+              $message['body'] 		= strtr($message['body'], $token_replacements);    
+            }
+          }  
+        }
+        unset($_SESSION['eb_admin_user_register_info']);
+      break;
+    }
+  }
+}
+
+function eb_admin_user_register_submit($form, &$form_state) { 
+  if (isset($form_state['clicked_button']['#post']) && is_array($form_state['clicked_button']['#post']))  {
+    $_SESSION['eb_admin_user_register_info'] =  serialize($form_state['clicked_button']['#post']);
+  }  
+}
+
+/**
+ * Implementation of hook_profile_alter
+ */
+function login_register_profile_alter(&$account) {
+  unset($account->content['summary']);
+  unset($account->content['privatemsg_send_new_message']);
+}
