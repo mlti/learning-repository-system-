@@ -1,5 +1,4 @@
 <?php
-// $Id: autocomplete_widgets.module,v 1.1.2.9 2009/12/30 17:46:19 markuspetrux Exp $
 
 /**
  * @file
@@ -27,6 +26,16 @@ function autocomplete_widgets_menu() {
 function autocomplete_widgets_theme() {
   return array(
     'autocomplete_widgets' => array('arguments' => array('element' => NULL)),
+  );
+}
+
+/**
+ * Implementation of hook_views_api().
+ */
+function autocomplete_widgets_views_api() {
+  return array(
+    'api' => 3.0,
+    'path' => drupal_get_path('module', 'autocomplete_widgets') . '/views',
   );
 }
 

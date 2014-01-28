@@ -1445,6 +1445,7 @@ function apachesolr_static_response_cache($response = NULL, $namespace = 'apache
 function apachesolr_drupal_query($keys = '', $filters = '', $solrsort = '', $base_path = '') {
   list($module, $class) = variable_get('apachesolr_query_class', array('apachesolr', 'Solr_Base_Query'));
   module_load_include('php', $module, $class);
+
   try {
     $query = new $class(apachesolr_get_solr(), $keys, $filters, $solrsort, $base_path);
   }

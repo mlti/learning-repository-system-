@@ -4,7 +4,7 @@
  * Implementation of hook_form_alter
  */
 function fapi_validation_form_alter(&$form, $form_state, $form_id) {
-  if (!is_array($form['#validate'])) {
+  if (!isset($form['#validate']) || !is_array($form['#validate'])) {
     $form['#validate'] = array();
   }
 
@@ -59,6 +59,10 @@ function fapi_validation_register(&$element=NULL, $value=NULL, $form_state=NULL)
 function fapi_validation_filters_execute(&$element) {
   $data = _fapi_validation_data('filters');
 
+  if (!isset($element['#value'])) {
+    return;
+  }
+
   $value = $element['#value'];
   foreach($element['#filters'] as $filter) {
     if (!isset($data[$filter])) {
@@ -105,13 +109,18 @@ function fapi_validation_rules_execute(&$element) {
 
     // Parsing parameters.
     if (isset($rs[3])) {
-      $params[] = preg_split('/ *, */', $rs[3]);
+      if ($rule == 'regexp') {
+        $params[] = array($rs[3]);
+      }
+      else {
+        $params[] = preg_split('/ *, */', $rs[3]);
+      }
     }
     
     $ret = call_user_func_array($data[$rule]['callback'], $params);
     if (!$ret) {
       $error = is_null($error_message) ? $data[$rule]['error_msg'] : $error_message;
-      form_set_error($element['#name'], t($error, array('%field'=>$element['#title'])));
+      form_set_error( implode("][",$element['#parents']) , t($error, array('%field'=>$element['#title'])));
     }
   }
 }
@@ -152,7 +161,7 @@ function fapi_validation_fapi_validation_rules() {
     ),
     'email' => array(
       'callback' => 'fapi_validation_rule_email',
-      'error_msg' => t('The field %field not is a valid email.')
+      'error_msg' => t('%field not is a valid email.')
     ),
     'length' => array(
       'callback' => 'fapi_validation_rule_length',
@@ -239,8 +248,8 @@ function fapi_validation_rule_length($value, $params) {
   }
 }
 
-function fapi_validation_rule_url($value) {
-  return valid_url($value);
+function fapi_validation_rule_url($value, $params = array()) {
+  return valid_url($value, !empty($params) && $params[0] == 'absolute');
 }
 
 function fapi_validation_rule_ipv4($value) {

@@ -445,7 +445,7 @@ abstract class QuizQuestion {
 
     $form['question'] = array(
       '#type' => 'markup',
-      '#value' => check_markup($this->node->body, $this->node->format),
+      '#value' => check_markup($this->node->body, $this->node->format, FALSE),
       '#prefix' => '<div class="quiz-question-body">',
       '#suffix' => '</div>',
     );
@@ -836,6 +836,7 @@ abstract class QuizQuestionResponse {
     }
     $form['question'] = $this->getReportFormQuestion($showpoints, $showfeedback);
     $form['score'] = $this->getReportFormScore($showpoints, $showfeedback, $allow_scoring);
+    $form['answer_feedback'] = $this->getReportFormAnswerFeedback($showpoints, $showfeedback, $allow_scoring);
     $form['max_score'] = array(
       '#type' => 'value',
       '#value' => $this->getMaxScore(),
@@ -894,6 +895,11 @@ abstract class QuizQuestionResponse {
       '#type' => 'markup',
       '#value' => '<span class="quiz-report-score">'. $this->getScore() .'</span>',
     );
+  }
+
+
+  public function getReportFormAnswerFeedback($showpoints, $showfeedback, $allow_scoring) {
+    return FALSE;
   }
 
   /**

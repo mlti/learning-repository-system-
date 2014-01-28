@@ -214,7 +214,6 @@ function quiz_question_answering_form($form_state, $node, $include_nid_in_id = F
   return $form;
 }
 
-
 /**
  * Form for teaser display
  *

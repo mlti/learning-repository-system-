@@ -1,8 +1,7 @@
 <?php
-
-// $Id$
 /**
- * @file Admin settings for Clientside Validation
+ * @file
+ * Admin settings for Clientside Validation
  */
 function clientside_validation_admin_settings() {
 
@@ -55,6 +54,19 @@ function clientside_validation_admin_settings() {
     '#description' => t('Validate elements (except checkboxes/radio buttons) on blur. <strong>If nothing is entered, all rules are skipped, except when the field was already marked as invalid.</strong>'),
     '#default_value' => variable_get('clientside_validation_validate_onblur', 1),
   );
+
+  $form['clientside_validation_validate_options']['clientside_validation_validate_onblur_always'] = array(
+    '#type' => 'radios',
+    '#options' => array(
+      '1' => t('Yes'),
+      '0' => t('No'),
+    ),
+    '#title' => t('Always validate fields on blur'),
+    '#description' => t('Validate elements (except checkboxes/radio buttons) on blur, <strong>even nothing is entered before or if the fields hasn\'t been marked as invalid before.</strong>'),
+    '#default_value' => variable_get('clientside_validation_validate_onblur_always', 0),
+    '#states' => array('visible' => array(':input[name=\'clientside_validation_validate_onblur\']' => array('value' => 1))),
+  );
+
 
   $form['clientside_validation_validate_options']['clientside_validation_validate_onkeyup'] = array(
     '#type' => 'radios',
@@ -111,12 +123,20 @@ function clientside_validation_admin_settings() {
     '#default_value' => variable_get('clientside_validation_scroll_speed', 1000),
   );
 
+  $form['clientside_validation_error']['clientside_validation_error_element'] = array(
+    '#title' => t('Error Element'),
+    '#description' => t('The HTML element to wrap the errors in. Defaults to label.'),
+    '#type' => 'select',
+    '#options' => drupal_map_assoc(array('label', 'span', 'div')),
+    '#default_value' => variable_get('clientside_validation_error_element', 'label'),
+  );
+
   if (module_exists('fapi_validation') && module_exists('clientside_validation_fapi')) {
     $form['clientside_validation_error']['clientside_validation_scroll_speed'] += array('#rules' => array('numeric'));
   }
 
   //Error Placement
-   $form['clientside_validation_error_placement'] = array(
+  $form['clientside_validation_error_placement'] = array(
     '#type' => 'fieldset',
     '#collapsible' => TRUE,
     '#collapsed' => FALSE,
@@ -152,7 +172,7 @@ function clientside_validation_admin_settings() {
   $form['clientside_validation_error_placement']['clientside_validation_jquery_selector'] = array(
     '#type' => 'textfield',
     '#title' => t('jQuery selector'),
-    '#description' => t('Enter a jQuery selector here if you selected "jQuery selector" in the previous step. 
+    '#description' => t('Enter a jQuery selector here if you selected "jQuery selector" in the previous step.
                       The error messages will be shown in this div if it exists.
                       If it doesn\'t, error messages will be shown above the first form on the page.'),
     '#default_value' => variable_get('clientside_validation_jquery_selector', ''),
@@ -162,6 +182,8 @@ function clientside_validation_admin_settings() {
     '#type' => 'textfield',
     '#title' => t('Custom function name'),
     '#description' => t('If you selected "Custom function" in the previous step, provide the name of the custom javascript function.
+      The function needs to be declared on the Drupal.clientsideValidation object prototype. You can find
+      further details in the clientside_validation.api.js file.
       This function will be given to !errorPlacement',
       array(
         '!errorPlacement' =>

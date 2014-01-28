@@ -1,5 +1,4 @@
 <?php
-// $Id: autocomplete_widgets.common.inc,v 1.1.2.2 2009/12/24 09:28:59 markuspetrux Exp $
 
 /**
  * @file
@@ -68,9 +67,14 @@ function _autocomplete_widgets_get_options_allowvals($field, $string = '', $matc
   if ($case_insensitive && $match != 'equals') {
     $string = drupal_strtolower($string);
   }
+  $filter_xss = !empty($field['widget']['autocomplete_xss']);
   $count = 0;
   $options = array();
   foreach ($allowed_values as $key => $value) {
+    if ($filter_xss) {
+      // Filter all HTML in $value, then trim white spaces.
+      $value = trim(filter_xss($value, array()));
+    }
     if ($string === '') {
       if (isset($keys) && is_array($keys)) {
         if (in_array($key, $keys)) {
@@ -130,12 +134,19 @@ function _autocomplete_widgets_get_options_flddata($field, $string = '', $match 
     $args = array_merge($args, $keys);
   }
 
+  // When obey_access_controls is enabled, we need to add node status
+  // to the where clause before the sql is combined.
+  if(!empty($field['widget']['obey_access_controls'])) {
+    $where[] = 'n.status = 1 ';
+  }
+
   $sql = 'SELECT f.'. $column .' FROM {'. $table .'} f WHERE '. implode(' AND ', $where) .' ORDER BY f.'. $column;
-  if (!empty($field['widget']['i18n_flddata'])) {
+  if (!empty($field['widget']['obey_access_controls']) || !empty($field['widget']['i18n_flddata'])) {
     // Adding a join with the node table allows the i18n rewrite the query
     // to filter values from node for the proper language.
     $sql = db_rewrite_sql(str_replace(' WHERE ', ' INNER JOIN {node} n ON f.vid = n.vid WHERE ', $sql));
   }
+
   $result = $limit ? db_query_range($sql, $args, 0, $limit) : db_query($sql, $args);
   $options = array();
   while ($row = db_fetch_object($result)) {

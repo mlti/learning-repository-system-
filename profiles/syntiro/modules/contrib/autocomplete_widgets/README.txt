@@ -1,6 +1,5 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Autocomplete Widgets for CCK Text and Number fields
-;; $Id: README.txt,v 1.1.2.2 2009/08/16 13:11:41 markuspetrux Exp $
 ;;
 ;; Module Author: markus_petrux (http://drupal.org/user/39593)
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

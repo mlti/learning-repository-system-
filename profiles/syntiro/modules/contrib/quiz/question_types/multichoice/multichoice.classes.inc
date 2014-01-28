@@ -105,7 +105,7 @@ class MultichoiceQuestion extends QuizQuestion {
    *  Whether or not to check for user access to the filter we're trying to apply
    * @return HTML markup
    */
-  private function checkMarkup($alternativeIndex, $field, $check_user_access = TRUE) {
+  private function checkMarkup($alternativeIndex, $field, $check_user_access = FALSE) {
     $alternative = $this->node->alternatives[$alternativeIndex];
     return check_markup($alternative[$field], $alternative[$field .'_format'], $check_user_access);
   }
@@ -556,8 +556,8 @@ class MultichoiceQuestion extends QuizQuestion {
       $form['alternatives'][$i]['advanced']['score_if_chosen'] = array(
         '#type' => 'textfield',
         '#title' => t('Score if chosen'),
-        '#size' => 2,
-        '#maxlength' => 2,
+        '#size' => 4,
+        '#maxlength' => 4,
         '#default_value' => $default_value,
         '#description' => t('This score is added to the users total score if the user chooses this alternative.'),
         '#attributes' => array(

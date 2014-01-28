@@ -1,5 +1,4 @@
 <?php
-// $Id: autocomplete_widgets.admin.inc,v 1.1.2.2 2009/10/04 17:03:17 markuspetrux Exp $
 
 /**
  * @file
@@ -85,6 +84,13 @@ function _autocomplete_widgets_widget_settings($op, $widget) {
           '!drupal-strtolower-url' => 'http://api.drupal.org/api/function/drupal_strtolower/6',
         ));
       }
+      $form['autocomplete_xss'] = array(
+        '#type' => 'radios',
+        '#title' => t('Filter HTML'),
+        '#default_value' => (isset($widget['autocomplete_xss']) ? $widget['autocomplete_xss'] : 0),
+        '#options' => array(0 => t('Disabled'), 1 => t('Enabled')),
+        '#description' => t('Enable this option to filter out HTML in display of values.'),
+      );
       if ($widget['type'] == 'autocomplete_widgets_flddata' && module_exists('i18n')) {
         $form['i18n_flddata'] = array(
           '#type' => 'radios',
@@ -100,9 +106,18 @@ function _autocomplete_widgets_widget_settings($op, $widget) {
           '#value' => 0,
         );
       }
+      if ($widget['type'] == 'autocomplete_widgets_flddata') {
+        $form['obey_access_controls'] = array(
+          '#type' => 'checkbox',
+          '#title' => t('Only suggest content from nodes that the current user has permission to access.'),
+          '#default_value' => (isset($widget['obey_access_controls']) ? $widget['obey_access_controls'] : 1),
+          '#description' => t('Unchecking this means that users might have content suggested to them from nodes to which they do not have access. Proceed with caution.'),
+        );
+      }
+
       return $form;
 
     case 'save':
-      return array('size', 'autocomplete_match', 'autocomplete_case', 'i18n_flddata');
+      return array('size', 'autocomplete_match', 'autocomplete_case', 'autocomplete_xss', 'i18n_flddata', 'obey_access_controls');
   }
 }

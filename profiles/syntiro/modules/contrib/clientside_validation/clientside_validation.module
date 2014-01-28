@@ -1,5 +1,4 @@
 <?php
-// $Id$
 /**
  * @file
  * Add client side validation to a webform.
@@ -68,7 +67,7 @@ function clientside_validation_form_alter(&$form, &$form_state, $form_id) {
       }
     }
     $form['#after_build'][] = 'clientside_validation_webform_after_build';
-  } 
+  }
   else {
     if (isset($form['buttons']['delete'])) {
       if (isset($form['buttons']['delete']['#attributes'])) {
@@ -301,7 +300,7 @@ function _clientside_validation_add_general_settings(&$settings, $form_id) {
     }
     $form_settings_added[] = str_replace('-', '_', $form_id);
   }
-  
+
   if (!$general_settings_added) {
     $settings['clientsideValidation']['general'] = array(
       "errorClass" => "error",
@@ -310,8 +309,10 @@ function _clientside_validation_add_general_settings(&$settings, $form_id) {
       "scrollTo" => variable_get('clientside_validation_scrollto_errormessage', 1),
       "scrollSpeed" => (int)variable_get('clientside_validation_scroll_speed', 1000),
       "validateOnBlur" => variable_get('clientside_validation_validate_onblur', 1),
+      "validateOnBlurAlways" => (int)(variable_get('clientside_validation_validate_onblur_always', 0) && variable_get('clientside_validation_validate_onblur', 1)),
       "validateOnKeyUp" => variable_get('clientside_validation_validate_onkeyup', 1),
       "validateOnSubmit" => variable_get('clientside_validation_validate_onsubmit', 1),
+      "errorElement" => variable_get('clientside_validation_error_element', 'label'),
     );
     $general_settings_added = TRUE;
   }
@@ -361,7 +362,7 @@ function _clientside_validation_set_number($name, $title, &$js_rules) {
 /**
  * Set validation rule for decimal fields.
  */
-function _clientside_validation_set_number_decimal($name, $title, $decimalpoint, &$js_rules) {
+function _clientside_validation_set_number_decimal($name, $title, $decimalpoint, &$js_rules, $message = '') {
   if (empty($decimalpoint)) {
     $decimalpoint = '.';
   }
@@ -369,8 +370,8 @@ function _clientside_validation_set_number_decimal($name, $title, $decimalpoint,
   if ($decimalpoint == '.') {
     $js_rules[$name]['number'] = TRUE;
     $variables = array(
-      'message' => '!title field accepts only numbers (use a \'.\' as decimal point).',
-      'placeholders' => array('!title' => $title),
+      'message' => empty($message) ? '!title field accepts only numbers (use a \'.\' as decimal point).' : $message,
+      'placeholders' => empty($message) ? array('!title' => $title) : array(),
       'error_type' => 'number',
       'element_name' => $name
     );
@@ -379,8 +380,8 @@ function _clientside_validation_set_number_decimal($name, $title, $decimalpoint,
   else {
     $js_rules[$name]['numberDE'] = TRUE;
     $variables = array(
-      'message' => '!title field accepts only numbers (use a \',\' as decimal point).',
-      'placeholers' => array('!title' => $title),
+      'message' => empty($message) ? '!title field accepts only numbers (use a \',\' as decimal point).' : $message,
+      'placeholers' => empty($message) ? array('!title' => $title) : array(),
       'error_type' => 'number',
       'element_name' => $name
     );
@@ -595,6 +596,95 @@ function _clientside_validation_set_minmaxlength($name, $title, $min, $max, &$js
 }
 
 /**
+ * Set validation rule for fields with a minimum and/or maximum amount of words.
+ */
+function _clientside_validation_set_minmax_words($name, $title, $min, $max, &$js_rules, $message = '') {
+  $title = variable_get('clientside_validation_prefix', '') . $title . variable_get('clientside_validation_suffix', '');
+  if (isset($min) && $min !== '' && isset($max) && $max !== '') {
+    $js_rules[$name]['rangewords'] = array($min, $max);
+    if (empty($message)) {
+      $variables = array(
+        'message' => '!title field has to have between !min and !max words.',
+        'placeholders' => array('!title' => $title, '!min' => $min, '!max' => $max),
+        'error_type' => 'rangewords',
+        'element_name' => $name,
+      );
+    }
+    else {
+      $variables = array(
+        'message' => $message,
+        'error_type' => 'rangewords',
+        'element_name' => $name,
+      );
+    }
+    $js_rules[$name]['messages']['rangewords'] = theme('clientside_error', $variables);
+  }
+  elseif (isset($min) && $min !== '') {
+    $js_rules[$name]['minwords'] = $min;
+    if (empty($message)) {
+      $variables = array(
+        'message' => '!title field has to have minimal !min words.',
+        'placeholders' => array('!title' => $title, '!min' => $min),
+        'error_type' => 'minwords',
+        'element_name' => $name,
+      );
+    }
+    else {
+      $variables = array(
+        'message' => $message,
+        'error_type' => 'minwords',
+        'element_name' => $name,
+      );
+    }
+    $js_rules[$name]['messages']['minwords'] = theme('clientside_error', $variables);
+  }
+  elseif (isset($max) && $max !== '') {
+    $js_rules[$name]['maxwords'] = $max;
+    if (empty($message)) {
+      $variables = array(
+        'message' => '!title field has to have maximum !max words.',
+        'placeholders' => array('!title' => $title, '!max' => $max),
+        'error_type' => 'maxwords',
+        'element_name' => $name,
+      );
+    }
+    else {
+      $variables = array(
+        'message' => $message,
+        'error_type' => 'maxwords',
+        'element_name' => $name,
+      );
+    }
+    $js_rules[$name]['messages']['maxwords'] = theme('clientside_error', $variables);
+  }
+}
+
+/**
+ * Set validation rule for plain text fields
+ */
+function _clientside_validation_set_plain_text($name, $title, $allowed_tags, &$js_rules, $message = '') {
+  $title = variable_get('clientside_validation_prefix', '') . $title . variable_get('clientside_validation_suffix', '');
+  $js_rules[$name]['plaintext'] = empty($allowed_tags) ? '' : $allowed_tags;
+  if (empty($message)) {
+      $variables = array(
+        'message' => (empty($allowed_tags)) ? '!title field can not contain any HTML tags' :  '!title field can not contain any HTML tags exept !allowed',
+        'placeholders' => array('!title' => $title, '!allowed' => $allowed_tags),
+        'error_type' => 'plaintext',
+        'element_name' => $name,
+      );
+    }
+    else {
+      $variables = array(
+        'message' => $message,
+        'error_type' => 'plaintext',
+        'element_name' => $name,
+      );
+    }
+    $js_rules[$name]['messages']['plaintext'] = theme('clientside_error', $variables);
+}
+
+
+/**
  * Set validation rule for required fields that must equal a value from an other field.
  */
 function _clientside_validation_set_equal($name, $title, $value, &$js_rules) {
@@ -612,13 +702,18 @@ function _clientside_validation_set_equal($name, $title, $value, &$js_rules) {
 /**
  * Set validation rule for fields that can not be equal to a value from an other field.
  */
-function _clientside_validation_set_not_equal($name, $title, $value, &$js_rules, $message = '') {
-  $js_rules[$name]['notEqualTo'] = ':input[name=\'submitted[' . $value['form_key'] . ']\']';
+function _clientside_validation_set_not_equal($name, $title, $element, &$js_rules, $message = '', $webform = FALSE) {
+ if ($webform) {
+    $js_rules[$name]['notEqualTo'] = ':input[name=\'submitted[' . $element['form_key'] . ']\']';
+  }
+  else {
+    $js_rules[$name]['notEqualTo'] = ':input[name=\'' . $element['form_key'] . '\']';
+  }
   $title = variable_get('clientside_validation_prefix', '') . $title . variable_get('clientside_validation_suffix', '');
   if (empty($message)) {
     $variables = array(
       'message' => '!title field has to different from !firstone.',
-      'placeholders' => array('!title' => $title, '!firstone' => $value['name']),
+      'placeholders' => array('!title' => $title, '!firstone' => $element['name']),
       'error_type' => 'notequalto',
       'element_name' => $name,
     );
@@ -637,13 +732,13 @@ function _clientside_validation_set_not_equal($name, $title, $value, &$js_rules,
 /**
  * Set validation rule for fields that must be equal to a specific value.
  */
-function _clientside_validation_set_specific_value($name, $title, $value, &$js_rules, $message = '') {
-  $js_rules[$name]['oneOf'] = $value;
+function _clientside_validation_set_specific_value($name, $title, $value, &$js_rules, $message = '', $case_sensitive = TRUE) {
+  $js_rules[$name]['oneOf'] = array('values' => array($value), 'caseSensitive' => $case_sensitive);
   $title = variable_get('clientside_validation_prefix', '') . $title . variable_get('clientside_validation_suffix', '');
   if (empty($message)) {
     $variables = array(
-      'message' => '!title field has to different from !firstone.',
-      'placeholders' => array('!title' => $title, '!firstone' => $value['name']),
+      'message' => '!title field has to be one of the following values: !values.',
+      'placeholders' => array('!title' => $title, '!values' => implode(', ', $value)),
       'error_type' => 'specific value',
       'element_name' => $name
     );
@@ -685,6 +780,31 @@ function _clientside_validation_set_specific_values($name, $title, $values, &$js
 }
 
 /**
+ * Set validation rule for fields that can not consist of one or more specific values
+ */
+function _clientside_validation_set_blacklist($name, $title, $values, &$js_rules, $message='') {
+  $js_rules[$name]['blacklist'] = $values;
+  $title = variable_get('clientside_validation_prefix', '') . $title . variable_get('clientside_validation_suffix', '');
+  if (empty($message)) {
+    $variables = array(
+      'message' => '!title field can not consist of following elements: !elements.',
+      'placeholders' => array('!title' => $title, '!elements' => implode(', ', $values)),
+      'error_type' => 'blacklist',
+      'element_name' => $name
+    );
+  }
+  else {
+    $variables = array(
+      'message' => $message,
+      'error_type' => 'blacklist',
+      'element_name' => $name
+    );
+  }
+  $message = theme('clientside_error', $variables);
+  $js_rules[$name]['messages']['blacklist'] = $message;
+}
+
+/**
  * Set validation rule for ean number fields.
  */
 function _clientside_validation_set_ean($name, $title, &$js_rules, $message = '') {
@@ -695,7 +815,7 @@ function _clientside_validation_set_ean($name, $title, &$js_rules, $message = ''
       'placeholders' => array('!title' => $title),
       'error_type' => 'ean',
       'element_name' => $name
-     );
+    );
   }
   else {
     $variables = array(
@@ -811,12 +931,12 @@ function _clientside_validation_set_checkboxgroup_minmax($name, $title, $id, &$j
 /**
  * Set validation rule for email fields.
  */
-function _clientside_validation_set_email($name, $title, &$js_rules) {
+function _clientside_validation_set_email($name, $title, &$js_rules, $message = '') {
   $title = variable_get('clientside_validation_prefix', '') . $title . variable_get('clientside_validation_suffix', '');
   $js_rules[$name]['email'] = TRUE;
   $variables = array(
-    'message' => 'The value in !title is not a valid email address.',
-    'placeholders' => array('!title' => $title),
+    'message' => empty($message) ? 'The value in !title is not a valid email address.' : $message,
+    'placeholders' => empty($message) ? array('!title' => $title) : array(),
     'error_type' => 'email',
     'element_name' => $name
   );
@@ -826,15 +946,38 @@ function _clientside_validation_set_email($name, $title, &$js_rules) {
 /**
  * Set validation rule for url fields.
  */
-function _clientside_validation_set_url($name, $title, &$js_rules) {
+function _clientside_validation_set_url($name, $title, &$js_rules, $message = '') {
   $title = variable_get('clientside_validation_prefix', '') . $title . variable_get('clientside_validation_suffix', '');
   $js_rules[$name]['url'] = TRUE;
   $variables = array(
-    'message' => 'The value in !title is not a valid url.', 'placeholders' => array('!title' => $title),
+    'message' => empty($message) ? 'The value in !title is not a valid url.' : $message,
+    'placeholders' => empty($message) ? array('!title' => $title) : array(),
     'error_type' => 'url',
     'element_name' => $name
   );
   $js_rules[$name]['messages']['url'] = theme('clientside_error', $variables);
+}
+
+/**
+ * Set validation rule for "require at least one of several".
+ */
+function _clientside_validation_set_require_oneof($names, $titles, $message = "", &$js_rules) {
+  $original_message = $message;
+  foreach ($names as $key => $name) {
+    $temp_titles = $titles;
+    unset($temp_titles[$key]);
+    if (empty ($original_message)) {
+      $string_titles = '<ul><li>' . implode('</li><li>', $temp_titles) . '</li></ul>';
+      $message = t('!name field is required unless you specify at least one of these items: !items', array('!name' => $titles[$key], '!items' => $string_titles));
+    }
+    $js_rules[$name]['requireOneOf'] = array_diff($names, array($name));
+    $variables = array(
+      'message' => $message,
+      'error_type' => 'requireOneOf',
+      'element_name' => $name,
+    );
+    $js_rules[$name]['messages']['requireOneOf'] = theme('clientside_error', $variables);
+  }
 }
 
 function clientside_validation_drupal_json_encode($var) {
@@ -852,7 +995,7 @@ function clientside_validation_theme_registry_alter(&$theme_registry) {
  * Implements hook_theme().
  */
 function clientside_validation_theme($existing, $type, $theme, $path) {
-   return array(
+  return array(
     'clientside_validation_checkboxes' => array(
       'arguments' => array('element' => NULL),
     ),
@@ -910,7 +1053,7 @@ function theme_clientside_error($variables) {
 
 /**
  * Theme callback
- * @see clientside_validation_theme().
+ * @see clientside_validation_theme()
  */
 function theme_clientside_validation_checkboxes($element) {
   $class = 'form-checkboxes';
